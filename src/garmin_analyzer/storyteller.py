@@ -53,7 +53,7 @@ def encode_image_to_base64(image_path: Path | str) -> str | None:
 def collect_day_markdowns(
     daily_dir: Path, activity_dirs: list[Path] | None = None
 ) -> dict[str, str]:
-    """Reads all markdown files for that day: daily_summary, evaluations, and activity summaries."""
+    """Reads all markdown files for that day: daily_summary, evaluations, activity summaries, and Garmin activity notes."""
     md_data: dict[str, str] = {}
 
     daily_summary_path = daily_dir / "daily_summary.md"
@@ -64,12 +64,34 @@ def collect_day_markdowns(
     if evaluations_path.exists():
         md_data["evaluations"] = evaluations_path.read_text(encoding="utf-8")
 
+    garmin_notes_parts: list[str] = []
+
     if activity_dirs:
         for idx, act_dir in enumerate(activity_dirs, 1):
             act_summary_path = act_dir / "activity_summary.md"
             if act_summary_path.exists():
                 key = f"activity_{idx}_{act_dir.name}"
                 md_data[key] = act_summary_path.read_text(encoding="utf-8")
+
+            # Extract Garmin activity description/notes from raw_activity.json
+            raw_activity_path = act_dir / "raw_activity.json"
+            if raw_activity_path.exists():
+                try:
+                    raw_act = json.loads(raw_activity_path.read_text(encoding="utf-8"))
+                    description = raw_act.get("description")
+                    if description and description.strip():
+                        act_name = raw_act.get("activityName", f"Aktivität {idx}")
+                        garmin_notes_parts.append(
+                            f"- **{act_name}**: {description.strip()}"
+                        )
+                except (json.JSONDecodeError, OSError) as err:
+                    logger.debug("Could not read Garmin notes from %s: %s", raw_activity_path, err)
+
+    if garmin_notes_parts:
+        md_data["garmin_activity_notes"] = (
+            "## Garmin Aktivitäts-Notizen (vom Nutzer in Garmin Connect hinterlegt)\n\n"
+            + "\n".join(garmin_notes_parts)
+        )
 
     return md_data
 
@@ -120,7 +142,13 @@ def generate_diary_narrative(
         "- Direkt unter dem H1-Titel folgt eine dezente Datumszeile in Kursivschrift (z.B. '*Montag, 24. August 2026*') und danach die fließende Erzählung.\n"
         "- Fließender Aufbau: Morgen & Erholung -> Tagesverlauf & Stimmung -> Die Aktivität & Natur -> Abendliche Reflexion.\n"
         "- Authentischer, runder Abschluss des Eintrags ohne abrupten Abbruch.\n"
-        "- Erwähne keinesfalls, dass dies von einer KI oder anhand von Datendateien erstellt wurde."
+        "- Erwähne keinesfalls, dass dies von einer KI oder anhand von Datendateien erstellt wurde.\n"
+        "\nGARMIN AKTIVITÄTS-NOTIZEN:\n"
+        "- Wenn in den Hintergrunddaten 'Garmin Aktivitäts-Notizen' vorhanden sind, sind dies persönliche Anmerkungen, "
+        "die der Nutzer direkt bei der Aktivität in Garmin Connect hinterlegt hat.\n"
+        "- Behandle diese Notizen als authentische, persönliche Kontextinformationen und flechte sie natürlich in den Tagebucheintrag ein.\n"
+        "- Wenn sowohl Garmin-Notizen als auch Persönliche Zusatzinformationen (Nutzernotizen) vorhanden sind, "
+        "haben die Nutzernotizen die höchste Priorität, aber die Garmin-Notizen sollen ergänzend einfließen."
     )
 
     # Prepare multimodal content with photos if available

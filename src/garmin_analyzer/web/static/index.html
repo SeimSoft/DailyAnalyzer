@@ -715,6 +715,10 @@
           <option value="uploaded">☁️ Bereits in MemReport</option>
           <option value="not_uploaded">⏳ Noch nicht hochgeladen</option>
         </select>
+        <label style="display: flex; align-items: center; gap: 0.45rem; cursor: pointer; font-size: 0.85rem; font-weight: 600; color: var(--text-main);" title="Nur Aktivitäten mit Fotos anzeigen">
+          <input type="checkbox" id="filter-photos-only" checked class="custom-checkbox" onchange="togglePhotosFilter()">
+          <span>📸 Nur mit Fotos</span>
+        </label>
         <div style="display: flex; align-items: center; gap: 0.4rem;">
           <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">Abruf:</span>
           <select id="select-limit" onchange="changeLimit(this.value)" style="background: rgba(10, 14, 23, 0.7); border: 1px solid var(--border-color); color: var(--text-main); padding: 0.6rem 0.75rem; border-radius: var(--radius-sm); font-size: 0.85rem; cursor: pointer; outline: none;">
@@ -839,6 +843,7 @@
     let currentStart = 0;
     let hasMore = true;
     let totalInspected = 0;
+    let onlyWithPhotos = true;
 
     // Check status on initial load
     window.addEventListener('DOMContentLoaded', async () => {
@@ -932,7 +937,7 @@
       </td></tr>`;
 
       try {
-        const url = `/api/activities?limit=${currentLimit}&start=${currentStart}${refresh ? '&refresh=true' : ''}`;
+        const url = `/api/activities?limit=${currentLimit}&start=${currentStart}&only_with_photos=${onlyWithPhotos}${refresh ? '&refresh=true' : ''}`;
         const res = await fetch(url);
         if (!res.ok) {
           if (res.status === 401) {
@@ -981,7 +986,7 @@
       const endDisplay = currentStart + totalInspected;
 
       if (pInfo) {
-        pInfo.textContent = `Aktivitäten #${startDisplay} bis #${endDisplay} geprüft • ${activities.length} mit Fotos auf Seite ${currentPage}`;
+        pInfo.textContent = `Aktivitäten #${startDisplay} bis #${endDisplay} geprüft • ${activities.length} ${onlyWithPhotos ? 'mit Fotos ' : ''}auf Seite ${currentPage}`;
       }
       if (badgePage) {
         badgePage.textContent = `Seite ${currentPage}`;
@@ -1010,6 +1015,13 @@
 
     function changeLimit(val) {
       currentLimit = parseInt(val, 10) || 100;
+      currentStart = 0;
+      currentPage = 1;
+      loadActivities(true);
+    }
+
+    function togglePhotosFilter() {
+      onlyWithPhotos = document.getElementById('filter-photos-only').checked;
       currentStart = 0;
       currentPage = 1;
       loadActivities(true);
@@ -1054,6 +1066,7 @@
               <div class="activity-name-cell">
                 <span>${escapeHtml(act.name)}</span>
                 ${act.location_name ? `<span class="activity-loc">📍 ${escapeHtml(act.location_name)}</span>` : ''}
+                ${act.description ? `<span class="activity-loc" style="color: var(--text-muted); font-style: italic;">📝 ${escapeHtml(act.description)}</span>` : ''}
                 <div class="activity-note-container">
                   <input type="text" 
                     class="activity-note-input" 

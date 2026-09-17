@@ -167,10 +167,11 @@ def list_activities(
     limit: int = Query(default=100, ge=1, le=500),
     start: int = Query(default=0, ge=0),
     refresh: bool = Query(default=False),
+    only_with_photos: bool = Query(default=True),
 ) -> dict[str, Any]:
-    """Fetches recent activities with pagination and filters to those with photos."""
+    """Fetches recent activities with pagination, optionally filtering to those with photos."""
     global _activities_cache
-    cache_key = f"{start}_{limit}"
+    cache_key = f"{start}_{limit}_{only_with_photos}"
 
     with _cache_lock:
         if not refresh and cache_key in _activities_cache:
@@ -201,7 +202,7 @@ def list_activities(
         parsed = [analyzer.parse_activity(a) for a in raw_activities]
         analyzer.check_activities_photos(parsed)
 
-        filtered = [a for a in parsed if a.photos_count > 0]
+        filtered = [a for a in parsed if a.photos_count > 0] if only_with_photos else parsed
 
         # Check uploaded reports in MemReport
         uploaded_dates: set[str] = set()
@@ -218,6 +219,7 @@ def list_activities(
                 "name": act.activity_name,
                 "type": act.activity_type,
                 "sub_sport": act.activity_sub_sport,
+                "description": act.description,
                 "distance_km": act.stats.distance_km,
                 "duration": act.stats.duration_formatted,
                 "avg_hr": act.stats.average_hr,
