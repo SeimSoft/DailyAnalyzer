@@ -7,11 +7,14 @@ interactive report generation (AI storytelling), and automated upload to MemRepo
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import hmac
 import json
 import logging
 import os
 import secrets
 import threading
+import time
 import uuid
 from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
@@ -22,6 +25,7 @@ from fastapi import (
     Cookie,
     Depends,
     FastAPI,
+    Header,
     HTTPException,
     Query,
     Request,
@@ -51,6 +55,7 @@ TOKEN_DIR = Path(os.getenv("GARMIN_TOKEN_DIR", Path.home() / ".garminconnect_tok
 
 # In-memory session and job store
 _active_sessions: set[str] = set()
+_revoked_sessions: set[str] = set()
 _activities_cache: dict[str, Any] = {}
 _cache_lock = threading.Lock()
 
@@ -92,6 +97,44 @@ app.add_middleware(
 
 
 # --- Auth Helpers ---
+def _get_auth_secret() -> bytes:
+    expected_password = (
+        os.getenv("WEB_ADMIN_PASSWORD")
+        or os.getenv("ADMIN_PASSWORD")
+        or DEFAULT_ADMIN_PASSWORD
+    )
+    return hashlib.sha256(f"garmin_analyzer_session_{expected_password}".encode()).digest()
+
+
+def _create_session_token() -> str:
+    ts = str(int(time.time()))
+    sig = hmac.new(_get_auth_secret(), ts.encode(), hashlib.sha256).hexdigest()
+    return f"{ts}.{sig}"
+
+
+def _is_valid_token(token: str | None) -> bool:
+    if not token or token in _revoked_sessions:
+        return False
+    if token in _active_sessions:
+        return True
+    try:
+        parts = token.split(".", 1)
+        if len(parts) != 2:
+            return False
+        ts_str, sig = parts
+        expected_sig = hmac.new(_get_auth_secret(), ts_str.encode(), hashlib.sha256).hexdigest()
+        if not secrets.compare_digest(sig, expected_sig):
+            return False
+        ts = int(ts_str)
+        now = time.time()
+        # Valid for 7 days, allow up to 60s clock skew
+        if now - ts > 86400 * 7 or now < ts - 60:
+            return False
+        return True
+    except Exception:
+        return False
+
+
 def verify_session(
     session_token: str | None = Cookie(default=None),
     authorization: str | None = None,
@@ -101,7 +144,7 @@ def verify_session(
     if not token and authorization and authorization.startswith("Bearer "):
         token = authorization[7:].strip()
 
-    if not token or token not in _active_sessions:
+    if not token or not _is_valid_token(token):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication required. Please enter the admin password.",
@@ -124,8 +167,10 @@ def login(req: LoginRequest, response: Response) -> dict[str, Any]:
             detail="Falsches Admin-Passwort.",
         )
 
-    token = secrets.token_hex(24)
+    token = _create_session_token()
     _active_sessions.add(token)
+    if token in _revoked_sessions:
+        _revoked_sessions.remove(token)
 
     response.set_cookie(
         key="session_token",
@@ -140,16 +185,25 @@ def login(req: LoginRequest, response: Response) -> dict[str, Any]:
 @app.post("/api/auth/logout")
 def logout(response: Response, session_token: str | None = Cookie(default=None)) -> dict[str, Any]:
     """Logs out and invalidates current session token."""
-    if session_token and session_token in _active_sessions:
-        _active_sessions.remove(session_token)
+    if session_token:
+        _revoked_sessions.add(session_token)
+        if session_token in _active_sessions:
+            _active_sessions.remove(session_token)
     response.delete_cookie("session_token")
     return {"success": True}
 
 
 @app.get("/api/auth/status")
-def auth_status(session_token: str | None = Cookie(default=None)) -> dict[str, Any]:
+def auth_status(
+    session_token: str | None = Cookie(default=None),
+    authorization: str | None = Header(default=None),
+) -> dict[str, Any]:
     """Returns current authentication state and service configurations."""
-    is_authenticated = bool(session_token and session_token in _active_sessions)
+    token = session_token
+    if not token and authorization and authorization.startswith("Bearer "):
+        token = authorization[7:].strip()
+
+    is_authenticated = bool(token and _is_valid_token(token))
     has_gemini = bool(os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"))
     memreport_url = os.getenv("MEMREPORT_URL", DEFAULT_MEMREPORT_URL)
     memreport_user = os.getenv("MEMREPORT_USER", DEFAULT_USERNAME)
