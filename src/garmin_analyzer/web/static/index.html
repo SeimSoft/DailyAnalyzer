@@ -631,17 +631,17 @@
         </div>
       </div>
       <div class="stat-card">
+        <div class="stat-icon">☁️</div>
+        <div class="stat-info">
+          <div id="stat-memreport-uploaded-count" class="stat-val">-</div>
+          <div class="stat-lbl">In MemReport verfügbar</div>
+        </div>
+      </div>
+      <div class="stat-card">
         <div class="stat-icon">🎯</div>
         <div class="stat-info">
           <div id="stat-selected-count" class="stat-val">0</div>
           <div class="stat-lbl">Ausgewählt für Report</div>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon">🔍</div>
-        <div class="stat-info">
-          <div id="stat-inspected-total" class="stat-val">100</div>
-          <div class="stat-lbl">Gescannte Aktivitäten</div>
         </div>
       </div>
     </div>
@@ -653,6 +653,11 @@
           <span class="search-icon">🔍</span>
           <input type="text" id="search-input" placeholder="Nach Name, Ort oder Datum filtern..." oninput="filterActivities()">
         </div>
+        <select id="filter-memreport" onchange="filterActivities()" style="background: rgba(10, 14, 23, 0.7); border: 1px solid var(--border-color); color: var(--text-main); padding: 0.6rem 1rem; border-radius: var(--radius-sm); font-size: 0.85rem; cursor: pointer; outline: none;">
+          <option value="all">Alle Aktivitäten</option>
+          <option value="uploaded">☁️ Bereits in MemReport</option>
+          <option value="not_uploaded">⏳ Noch nicht hochgeladen</option>
+        </select>
       </div>
       <div class="toolbar-right">
         <button class="btn btn-secondary" onclick="selectAll(true)">Alle auswählen</button>
@@ -675,6 +680,7 @@
             <th style="text-align: right;">Dauer</th>
             <th style="text-align: right;">Puls</th>
             <th style="text-align: right;">Fotos</th>
+            <th style="text-align: center;">MemReport</th>
           </tr>
         </thead>
         <tbody id="activity-tbody">
@@ -841,11 +847,12 @@
         document.getElementById('stat-activities-count').textContent = activities.length;
         const totalPhotos = activities.reduce((acc, a) => acc + (a.photos_count || 0), 0);
         document.getElementById('stat-photos-total').textContent = totalPhotos;
-        document.getElementById('stat-inspected-total').textContent = data.total_inspected || 100;
+        const uploadedCount = activities.filter(a => a.memreport_uploaded).length;
+        document.getElementById('stat-memreport-uploaded-count').textContent = uploadedCount;
 
         renderActivities(activities);
       } catch (err) {
-        tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 2rem; color: #F87171;">
+        tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; padding: 2rem; color: #F87171;">
           Fehler beim Laden: ${err.message}
         </td></tr>`;
       }
@@ -854,8 +861,8 @@
     function renderActivities(list) {
       const tbody = document.getElementById('activity-tbody');
       if (!list.length) {
-        tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 3rem; color: #94A3B8;">
-          Keine Aktivitäten mit Fotos gefunden.
+        tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; padding: 3rem; color: #94A3B8;">
+          Keine Aktivitäten für den aktuellen Filter gefunden.
         </td></tr>`;
         return;
       }
@@ -863,6 +870,14 @@
       tbody.innerHTML = list.map(act => {
         const isSelected = selectedActivityIds.has(act.activity_id);
         const sportIcon = getSportIcon(act.type, act.sub_sport);
+        const memreportBadge = act.memreport_uploaded
+          ? `<a href="${act.viewer_url || '#'}" target="_blank" class="badge badge-emerald" style="text-decoration: none; cursor: pointer;" title="In MemReport ansehen">
+               ☁️ Hochgeladen ↗
+             </a>`
+          : `<span class="badge" style="color: var(--text-dim); border-color: rgba(255,255,255,0.05); background: transparent;">
+               Nicht hochgeladen
+             </span>`;
+
         return `
           <tr id="row-${act.activity_id}" class="${isSelected ? 'selected' : ''}">
             <td>
@@ -889,6 +904,9 @@
             <td style="text-align: right;" class="mono">${act.avg_hr ? act.avg_hr + ' bpm' : '-'}</td>
             <td style="text-align: right;">
               <span class="photo-pill">📸 ${act.photos_count}</span>
+            </td>
+            <td style="text-align: center;">
+              ${memreportBadge}
             </td>
           </tr>
         `;
@@ -917,11 +935,17 @@
 
     function filterActivities() {
       const q = document.getElementById('search-input').value.toLowerCase().trim();
+      const memFilter = document.getElementById('filter-memreport') ? document.getElementById('filter-memreport').value : 'all';
+
       const filtered = activities.filter(a => {
-        return (a.name || '').toLowerCase().includes(q) ||
+        const matchesQuery = (a.name || '').toLowerCase().includes(q) ||
                (a.date || '').toLowerCase().includes(q) ||
                (a.location_name || '').toLowerCase().includes(q) ||
                (a.type || '').toLowerCase().includes(q);
+        if (!matchesQuery) return false;
+        if (memFilter === 'uploaded') return a.memreport_uploaded;
+        if (memFilter === 'not_uploaded') return !a.memreport_uploaded;
+        return true;
       });
       renderActivities(filtered);
     }
@@ -1019,7 +1043,7 @@
 
         const data = await res.json();
         currentJobId = data.job_id;
-        streamLogs(currentJobId);
+        pollJobStatus(currentJobId);
 
       } catch (err) {
         logs.innerHTML = `<div class="log-line" style="color: #F87171;">❌ Fehler: ${err.message}</div>`;
@@ -1028,8 +1052,10 @@
       }
     }
 
-    function streamLogs(jobId) {
-      if (eventSource) eventSource.close();
+    let pollInterval = null;
+
+    async function pollJobStatus(jobId) {
+      if (pollInterval) clearInterval(pollInterval);
 
       const logsDiv = document.getElementById('terminal-logs');
       const pBar = document.getElementById('job-progress-bar');
@@ -1037,34 +1063,48 @@
       const modalTitle = document.getElementById('modal-title');
       const spinner = document.getElementById('modal-spinner');
 
-      eventSource = new EventSource(`/api/jobs/${jobId}/stream`);
+      let lastLogsCount = 0;
 
-      eventSource.onmessage = (e) => {
-        const payload = JSON.parse(e.data);
+      const check = async () => {
+        try {
+          const res = await fetch(`/api/jobs/${jobId}`);
+          if (!res.ok) {
+            if (res.status === 401) {
+              clearInterval(pollInterval);
+              showLogin();
+              return;
+            }
+            return;
+          }
 
-        if (payload.type === 'log') {
-          const line = document.createElement('div');
-          line.className = 'log-line';
-          line.innerHTML = `<span class="log-time">${payload.log.timestamp}</span> ${escapeHtml(payload.log.message)}`;
-          logsDiv.appendChild(line);
-          logsDiv.scrollTop = logsDiv.scrollHeight;
+          const job = await res.json();
+          const logs = job.logs || [];
 
-          pBar.style.width = `${payload.progress}%`;
-        }
+          // Render new logs
+          if (logs.length > lastLogsCount) {
+            for (let i = lastLogsCount; i < logs.length; i++) {
+              const item = logs[i];
+              const line = document.createElement('div');
+              line.className = 'log-line';
+              line.innerHTML = `<span class="log-time">${escapeHtml(item.timestamp)}</span> ${escapeHtml(item.message)}`;
+              logsDiv.appendChild(line);
+            }
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+            lastLogsCount = logs.length;
+          }
 
-        if (payload.type === 'done') {
-          eventSource.close();
-          spinner.classList.add('hidden');
-          pBar.style.width = '100%';
+          pBar.style.width = `${job.progress || 0}%`;
 
-          if (payload.status === 'completed') {
+          if (job.status === 'completed') {
+            clearInterval(pollInterval);
+            spinner.classList.add('hidden');
+            pBar.style.width = '100%';
             modalTitle.innerHTML = '✅ Erfolgreich abgeschlossen!';
-            
+
             // Render results
             resultsDiv.classList.remove('hidden');
             let linksHtml = '<div style="margin-top: 1rem; display: flex; flex-direction: column; gap: 0.5rem;">';
-            
-            (payload.results || []).forEach(r => {
+            (job.results || []).forEach(r => {
               if (r.viewer_url) {
                 linksHtml += `
                   <a href="${r.viewer_url}" target="_blank" class="btn btn-primary" style="text-decoration: none; justify-content: space-between;">
@@ -1077,20 +1117,33 @@
             linksHtml += '</div>';
             resultsDiv.innerHTML = linksHtml;
 
-          } else {
+            // Automatically reload table in background to refresh MemReport status badges
+            loadActivities(true);
+
+          } else if (job.status === 'failed') {
+            clearInterval(pollInterval);
+            spinner.classList.add('hidden');
             modalTitle.innerHTML = '❌ Job fehlgeschlagen';
+            if (job.error) {
+              const errLine = document.createElement('div');
+              errLine.className = 'log-line';
+              errLine.style.color = '#F87171';
+              errLine.textContent = `❌ ${job.error}`;
+              logsDiv.appendChild(errLine);
+            }
           }
+        } catch (err) {
+          console.error('Error polling job:', err);
         }
       };
 
-      eventSource.onerror = () => {
-        eventSource.close();
-      };
+      await check();
+      pollInterval = setInterval(check, 750);
     }
 
     function closeModal() {
       document.getElementById('progress-modal').classList.add('hidden');
-      if (eventSource) eventSource.close();
+      if (pollInterval) clearInterval(pollInterval);
     }
 
     function escapeHtml(str) {

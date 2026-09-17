@@ -462,6 +462,15 @@ def list_activities(
 
     parsed = [analyzer.parse_activity(a) for a in raw_activities]
 
+    # Check MemReport uploaded status if configured
+    try:
+        uploader = MemReportClient()
+        uploaded_dates = uploader.get_uploaded_dates()
+        for a in parsed:
+            a.memreport_uploaded = a.date_str in uploaded_dates
+    except Exception:
+        pass
+
     if only_images:
         with console.status(
             f"[bold blue]Inspecting {len(parsed)} recent activities for photos...[/bold blue]"
@@ -480,9 +489,10 @@ def list_activities(
             console,
             title=f"Garmin Activities with Photos ({len(parsed)} found in last {len(raw_activities)} activities)",
             show_photos=True,
+            show_memreport=True,
         )
     else:
-        print_activities_table(parsed, console)
+        print_activities_table(parsed, console, show_memreport=True)
 
 
 @app.command()

@@ -127,3 +127,27 @@ class MemReportClient:
             self.set_location(date_str, latitude, longitude, name=location_name)
 
         return result
+
+    def list_reports(self) -> list[dict[str, Any]]:
+        """Retrieves list of existing reports from MemReport."""
+        if not self.token:
+            self.login()
+
+        url = f"{self.base_url}/api/reports"
+        try:
+            res = self.session.get(url, timeout=5)
+            res.raise_for_status()
+            return res.json() or []
+        except Exception as e:
+            logger.debug("Failed to list reports from MemReport at %s: %s", url, e)
+            return []
+
+    def get_uploaded_dates(self) -> set[str]:
+        """Returns set of date strings ('YYYY-MM-DD') for which reports already exist in MemReport."""
+        try:
+            reports = self.list_reports()
+            return {r.get("date") for r in reports if r.get("date")}
+        except Exception as e:
+            logger.debug("Could not determine uploaded dates from MemReport: %s", e)
+            return set()
+

@@ -91,13 +91,17 @@ def test_activities_endpoint(mock_get_client, client: TestClient):
     }
     mock_get_client.return_value = mock_garmin
 
-    res = client.get("/api/activities?refresh=true")
-    assert res.status_code == 200
-    data = res.json()
-    assert "activities" in data
-    assert len(data["activities"]) == 1
-    assert data["activities"][0]["activity_id"] == 1001
-    assert data["activities"][0]["photos_count"] == 1
+    with patch("garmin_analyzer.web.app.MemReportClient.get_uploaded_dates", return_value={"2026-08-24"}):
+        res = client.get("/api/activities?refresh=true")
+        assert res.status_code == 200
+        data = res.json()
+        assert "activities" in data
+        assert len(data["activities"]) == 1
+        assert data["activities"][0]["activity_id"] == 1001
+        assert data["activities"][0]["photos_count"] == 1
+        assert data["activities"][0]["memreport_uploaded"] is True
+        assert "/viewer?date=2026-08-24" in data["activities"][0]["viewer_url"]
+
 
 
 @patch("garmin_analyzer.web.app._run_report_job")

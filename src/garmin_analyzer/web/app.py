@@ -189,6 +189,14 @@ def list_activities(
 
         filtered = [a for a in parsed if a.photos_count > 0]
 
+        # Check uploaded reports in MemReport
+        uploaded_dates: set[str] = set()
+        memreport_client = MemReportClient()
+        try:
+            uploaded_dates = memreport_client.get_uploaded_dates()
+        except Exception as err:
+            logger.debug("Could not determine uploaded dates from MemReport: %s", err)
+
         data = [
             {
                 "activity_id": act.activity_id,
@@ -201,6 +209,10 @@ def list_activities(
                 "avg_hr": act.stats.average_hr,
                 "photos_count": act.photos_count,
                 "location_name": act.location.location_name,
+                "memreport_uploaded": act.date_str in uploaded_dates,
+                "viewer_url": f"{memreport_client.base_url}/viewer?date={act.date_str}"
+                if act.date_str in uploaded_dates
+                else None,
             }
             for act in filtered
         ]
@@ -321,13 +333,17 @@ def _run_report_job(job_id: str, req: GenerateRequest) -> None:
                 if job:
                     job["progress"] = int((idx / total_dates) * 100)
 
+        log("🎉 Alle Aufgaben abgeschlossen!")
+
         with _jobs_lock:
             job = _jobs.get(job_id)
             if job:
                 job["status"] = "completed"
                 job["results"] = results
                 job["progress"] = 100
-        log("🎉 Alle Aufgaben abgeschlossen!")
+
+        with _cache_lock:
+            _activities_cache["data"] = []
 
     except Exception as e:
         log(f"💥 Kritischer Fehler im Job: {e}")

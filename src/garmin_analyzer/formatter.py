@@ -409,9 +409,11 @@ def print_activities_table(
     console: Console,
     title: str | None = None,
     show_photos: bool = False,
+    show_memreport: bool = False,
 ) -> None:
     """Prints a tabular listing of multiple activities."""
     has_photos = show_photos or any(act.photos_count > 0 for act in activities)
+    has_memreport = show_memreport or any(act.memreport_uploaded for act in activities)
     table = Table(
         title=title or f"Recent Garmin Activities ({len(activities)})",
         show_header=True,
@@ -426,6 +428,8 @@ def print_activities_table(
     table.add_column("Avg HR", justify="right")
     if has_photos:
         table.add_column("Photos", justify="right", style="magenta")
+    if has_memreport:
+        table.add_column("MemReport", justify="center", style="bold green")
 
     for act in activities:
         row = [
@@ -439,6 +443,8 @@ def print_activities_table(
         ]
         if has_photos:
             row.append(f"📸 {act.photos_count}" if act.photos_count > 0 else "-")
+        if has_memreport:
+            row.append("☁️ Ja" if act.memreport_uploaded else "-")
         table.add_row(*row)
 
     console.print(table)

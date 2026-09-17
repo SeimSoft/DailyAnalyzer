@@ -177,6 +177,7 @@ class ActivityOverview(BaseModel):
     weather: WeatherInfo | None = None
     hr_zones: list[dict[str, Any]] | dict[str, Any] | None = None
     photos_count: int = 0
+    memreport_uploaded: bool = False
 
     @property
     def date_str(self) -> str:
