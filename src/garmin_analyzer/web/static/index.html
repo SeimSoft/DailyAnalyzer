@@ -421,6 +421,36 @@
       color: var(--text-dim);
     }
 
+    .activity-note-container {
+      margin-top: 0.35rem;
+      width: 100%;
+      max-width: 460px;
+    }
+
+    .activity-note-input {
+      width: 100%;
+      background: rgba(10, 14, 23, 0.75);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: var(--radius-sm);
+      padding: 0.35rem 0.65rem;
+      color: #F1F5F9;
+      font-size: 0.775rem;
+      transition: all 0.2s ease;
+    }
+
+    .activity-note-input:focus {
+      outline: none;
+      border-color: var(--primary);
+      background: rgba(15, 23, 42, 0.95);
+      box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.25);
+    }
+
+    .activity-note-input::placeholder {
+      color: var(--text-dim);
+      font-style: italic;
+      font-size: 0.75rem;
+    }
+
     .photo-pill {
       display: inline-flex;
       align-items: center;
@@ -432,6 +462,33 @@
       border-radius: 9999px;
       font-size: 0.775rem;
       font-weight: 700;
+    }
+
+    /* Pagination Container */
+    .pagination-container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 1.25rem;
+      padding: 0.85rem 1.25rem;
+      background: var(--bg-card);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .pagination-info {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .pagination-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
     }
 
     /* Sticky Floating Action Bar */
@@ -658,6 +715,16 @@
           <option value="uploaded">☁️ Bereits in MemReport</option>
           <option value="not_uploaded">⏳ Noch nicht hochgeladen</option>
         </select>
+        <div style="display: flex; align-items: center; gap: 0.4rem;">
+          <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">Abruf:</span>
+          <select id="select-limit" onchange="changeLimit(this.value)" style="background: rgba(10, 14, 23, 0.7); border: 1px solid var(--border-color); color: var(--text-main); padding: 0.6rem 0.75rem; border-radius: var(--radius-sm); font-size: 0.85rem; cursor: pointer; outline: none;">
+            <option value="25">25 Aktivitäten</option>
+            <option value="50">50 Aktivitäten</option>
+            <option value="100" selected>100 Aktivitäten</option>
+            <option value="200">200 Aktivitäten</option>
+            <option value="500">500 Aktivitäten</option>
+          </select>
+        </div>
       </div>
       <div class="toolbar-right">
         <button class="btn btn-secondary" onclick="selectAll(true)">Alle auswählen</button>
@@ -688,6 +755,24 @@
         </tbody>
       </table>
     </div>
+
+    <!-- Pagination Bar -->
+    <div class="pagination-container" id="pagination-bar">
+      <div class="pagination-info" id="pagination-info">
+        Lade Aktivitäten...
+      </div>
+      <div class="pagination-actions">
+        <button id="btn-page-prev" class="btn btn-secondary" onclick="prevPage()" disabled>
+          ◀️ Vorherige
+        </button>
+        <span id="badge-page-num" class="badge badge-cyan" style="font-size: 0.85rem; padding: 0.4rem 0.8rem;">
+          Seite 1
+        </span>
+        <button id="btn-page-next" class="btn btn-secondary" onclick="nextPage()" disabled>
+          Nächste ▶️
+        </button>
+      </div>
+    </div>
   </main>
 
   <!-- Floating Action Bar -->
@@ -705,9 +790,17 @@
         <span>📤 Zu MemReport hochladen</span>
       </label>
     </div>
-    <button id="btn-generate" class="btn btn-primary" onclick="startGeneration()">
-      🚀 Report generieren & hochladen
-    </button>
+    <div style="display: flex; gap: 0.6rem; align-items: center;">
+      <button class="btn btn-secondary" onclick="exportSelected('json')" title="Ausgewählte Aktivitäten als JSON herunterladen">
+        📥 JSON
+      </button>
+      <button class="btn btn-secondary" onclick="exportSelected('csv')" title="Ausgewählte Aktivitäten als CSV herunterladen">
+        📥 CSV
+      </button>
+      <button id="btn-generate" class="btn btn-primary" onclick="startGeneration()">
+        🚀 Report generieren & hochladen
+      </button>
+    </div>
   </div>
 
   <!-- Execution & Progress Modal -->
@@ -736,8 +829,16 @@
   <script>
     let activities = [];
     let selectedActivityIds = new Set();
+    let activityNotes = {};
+    let knownActivities = new Map();
     let currentJobId = null;
     let eventSource = null;
+
+    let currentPage = 1;
+    let currentLimit = 100;
+    let currentStart = 0;
+    let hasMore = true;
+    let totalInspected = 0;
 
     // Check status on initial load
     window.addEventListener('DOMContentLoaded', async () => {
@@ -825,13 +926,13 @@
 
     async function loadActivities(refresh = false) {
       const tbody = document.getElementById('activity-tbody');
-      tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 3rem; color: #94A3B8;">
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; padding: 3rem; color: #94A3B8;">
         <span class="spinner" style="width: 24px; height: 24px; border-width: 3px; margin-bottom: 0.75rem;"></span><br>
-        Lade die letzten 100 Garmin Aktivitäten und prüfe Fotos...
+        Lade Garmin Aktivitäten (Seite ${currentPage}, ${currentLimit} ab #${currentStart + 1})...
       </td></tr>`;
 
       try {
-        const url = `/api/activities?limit=100${refresh ? '&refresh=true' : ''}`;
+        const url = `/api/activities?limit=${currentLimit}&start=${currentStart}${refresh ? '&refresh=true' : ''}`;
         const res = await fetch(url);
         if (!res.ok) {
           if (res.status === 401) {
@@ -842,13 +943,25 @@
         }
         const data = await res.json();
         activities = data.activities || [];
+        totalInspected = data.total_inspected || activities.length;
+        hasMore = Boolean(data.has_more);
+
+        // Remember all activities across all pages in knownActivities
+        activities.forEach(a => knownActivities.set(a.activity_id, a));
         
-        // Update stats
-        document.getElementById('stat-activities-count').textContent = activities.length;
-        const totalPhotos = activities.reduce((acc, a) => acc + (a.photos_count || 0), 0);
+        // Update stats from known activities
+        document.getElementById('stat-activities-count').textContent = knownActivities.size;
+        let totalPhotos = 0;
+        let uploadedCount = 0;
+        knownActivities.forEach(a => {
+          totalPhotos += (a.photos_count || 0);
+          if (a.memreport_uploaded) uploadedCount++;
+        });
         document.getElementById('stat-photos-total').textContent = totalPhotos;
-        const uploadedCount = activities.filter(a => a.memreport_uploaded).length;
         document.getElementById('stat-memreport-uploaded-count').textContent = uploadedCount;
+
+        // Update pagination UI controls
+        updatePaginationUI();
 
         renderActivities(activities);
       } catch (err) {
@@ -856,6 +969,50 @@
           Fehler beim Laden: ${err.message}
         </td></tr>`;
       }
+    }
+
+    function updatePaginationUI() {
+      const pInfo = document.getElementById('pagination-info');
+      const btnPrev = document.getElementById('btn-page-prev');
+      const btnNext = document.getElementById('btn-page-next');
+      const badgePage = document.getElementById('badge-page-num');
+
+      const startDisplay = currentStart + 1;
+      const endDisplay = currentStart + totalInspected;
+
+      if (pInfo) {
+        pInfo.textContent = `Aktivitäten #${startDisplay} bis #${endDisplay} geprüft • ${activities.length} mit Fotos auf Seite ${currentPage}`;
+      }
+      if (badgePage) {
+        badgePage.textContent = `Seite ${currentPage}`;
+      }
+      if (btnPrev) {
+        btnPrev.disabled = (currentStart === 0);
+      }
+      if (btnNext) {
+        btnNext.disabled = !hasMore;
+      }
+    }
+
+    function nextPage() {
+      if (!hasMore) return;
+      currentStart += currentLimit;
+      currentPage += 1;
+      loadActivities();
+    }
+
+    function prevPage() {
+      if (currentStart <= 0) return;
+      currentStart = Math.max(0, currentStart - currentLimit);
+      currentPage = Math.max(1, currentPage - 1);
+      loadActivities();
+    }
+
+    function changeLimit(val) {
+      currentLimit = parseInt(val, 10) || 100;
+      currentStart = 0;
+      currentPage = 1;
+      loadActivities(true);
     }
 
     function renderActivities(list) {
@@ -897,6 +1054,15 @@
               <div class="activity-name-cell">
                 <span>${escapeHtml(act.name)}</span>
                 ${act.location_name ? `<span class="activity-loc">📍 ${escapeHtml(act.location_name)}</span>` : ''}
+                <div class="activity-note-container">
+                  <input type="text" 
+                    class="activity-note-input" 
+                    id="note-${act.activity_id}"
+                    placeholder="✍️ Zusatz-Info / Notiz (z.B. Mein Geburtstag, Tour mit Freunden...)"
+                    value="${escapeHtml(activityNotes[act.date] || '')}"
+                    oninput="updateActivityNote('${act.date}', this.value, ${act.activity_id})"
+                    onclick="event.stopPropagation()">
+                </div>
               </div>
             </td>
             <td style="text-align: right; font-weight: 600;">${act.distance_km ? act.distance_km + ' km' : '-'}</td>
@@ -998,12 +1164,95 @@
       masterCb.checked = activities.length > 0 && count === activities.length;
     }
 
+    function updateActivityNote(date, val, actId) {
+      activityNotes[date] = val;
+      // If user typed something and row isn't selected, auto-select it
+      if (val && val.trim().length > 0 && !selectedActivityIds.has(actId)) {
+        selectedActivityIds.add(actId);
+        const row = document.getElementById(`row-${actId}`);
+        if (row) {
+          row.classList.add('selected');
+          const cb = row.querySelector('.act-checkbox');
+          if (cb) cb.checked = true;
+        }
+        updateSelectionUI();
+      }
+    }
+
+    function exportSelected(format) {
+      if (selectedActivityIds.size === 0) {
+        alert('Bitte wähle mindestens eine Aktivität zum Exportieren aus.');
+        return;
+      }
+
+      const selectedList = [];
+      selectedActivityIds.forEach(id => {
+        const act = knownActivities.get(id);
+        if (act) {
+          selectedList.push({
+            ...act,
+            user_note: activityNotes[act.date] || ""
+          });
+        }
+      });
+
+      selectedList.sort((a, b) => b.date.localeCompare(a.date));
+      const nowStr = new Date().toISOString().slice(0, 10);
+
+      if (format === 'json') {
+        const jsonStr = JSON.stringify(selectedList, null, 2);
+        downloadFile(`garmin_activities_export_${nowStr}.json`, 'application/json', jsonStr);
+      } else if (format === 'csv') {
+        const headers = ["Activity ID", "Datum", "Name", "Sportart", "Sub-Sport", "Distanz (km)", "Dauer", "Avg HF (bpm)", "Fotos", "Ort", "Notiz", "MemReport URL"];
+        const rows = selectedList.map(a => [
+          a.activity_id,
+          `"${a.date}"`,
+          `"${(a.name || '').replace(/"/g, '""')}"`,
+          `"${(a.type || '').replace(/"/g, '""')}"`,
+          `"${(a.sub_sport || '').replace(/"/g, '""')}"`,
+          a.distance_km || 0,
+          `"${a.duration || ''}"`,
+          a.avg_hr || '',
+          a.photos_count || 0,
+          `"${(a.location_name || '').replace(/"/g, '""')}"`,
+          `"${(a.user_note || '').replace(/"/g, '""')}"`,
+          `"${a.viewer_url || ''}"`
+        ]);
+        const csvContent = [headers.join(","), ...rows.map(r => r.join(","))].join("\r\n");
+        downloadFile(`garmin_activities_export_${nowStr}.csv`, 'text/csv;charset=utf-8;', csvContent);
+      }
+    }
+
+    function downloadFile(filename, mimeType, content) {
+      const blob = new Blob([content], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
     async function startGeneration() {
       if (selectedActivityIds.size === 0) return;
 
-      const selectedActs = activities.filter(a => selectedActivityIds.has(a.activity_id));
+      const selectedActs = [];
+      selectedActivityIds.forEach(id => {
+        const act = knownActivities.get(id);
+        if (act) selectedActs.push(act);
+      });
       const dates = Array.from(new Set(selectedActs.map(a => a.date)));
       const actIds = Array.from(selectedActivityIds);
+
+      // Collect notes for the selected dates
+      const notesPayload = {};
+      dates.forEach(d => {
+        if (activityNotes[d] && activityNotes[d].trim()) {
+          notesPayload[d] = activityNotes[d].trim();
+        }
+      });
 
       const llmSummary = document.getElementById('opt-llm').checked;
       const upload = document.getElementById('opt-upload').checked;
@@ -1031,6 +1280,7 @@
           body: JSON.stringify({
             dates: dates,
             activity_ids: actIds,
+            notes: notesPayload,
             llm_summary: llmSummary,
             upload: upload
           })

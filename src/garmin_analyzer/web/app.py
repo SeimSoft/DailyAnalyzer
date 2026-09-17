@@ -51,7 +51,7 @@ TOKEN_DIR = Path(os.getenv("GARMIN_TOKEN_DIR", Path.home() / ".garminconnect_tok
 
 # In-memory session and job store
 _active_sessions: set[str] = set()
-_activities_cache: dict[str, Any] = {"timestamp": None, "data": []}
+_activities_cache: dict[str, Any] = {}
 _cache_lock = threading.Lock()
 
 # Jobs store: job_id -> JobState
@@ -67,6 +67,7 @@ class LoginRequest(BaseModel):
 class GenerateRequest(BaseModel):
     dates: list[str] = Field(default_factory=list)
     activity_ids: list[int] = Field(default_factory=list)
+    notes: dict[str, str] = Field(default_factory=dict)
     llm_summary: bool = True
     upload: bool = True
     memreport_url: str | None = None
@@ -164,25 +165,38 @@ def auth_status(session_token: str | None = Cookie(default=None)) -> dict[str, A
 @app.get("/api/activities", dependencies=[Depends(verify_session)])
 def list_activities(
     limit: int = Query(default=100, ge=1, le=500),
+    start: int = Query(default=0, ge=0),
     refresh: bool = Query(default=False),
 ) -> dict[str, Any]:
-    """Fetches recent activities and filters to those with photos."""
+    """Fetches recent activities with pagination and filters to those with photos."""
     global _activities_cache
+    cache_key = f"{start}_{limit}"
 
     with _cache_lock:
-        if not refresh and _activities_cache.get("data") and len(_activities_cache["data"]) > 0:
+        if not refresh and cache_key in _activities_cache:
+            cached_entry = _activities_cache[cache_key]
             return {
-                "activities": _activities_cache["data"],
-                "total_inspected": _activities_cache.get("total_inspected", 0),
+                "activities": cached_entry["data"],
+                "total_inspected": cached_entry.get("total_inspected", 0),
+                "start": start,
+                "limit": limit,
+                "has_more": cached_entry.get("has_more", False),
                 "cached": True,
             }
 
     try:
         client = get_authenticated_client(token_dir=TOKEN_DIR)
         analyzer = GarminAnalyzer(client)
-        raw_activities = analyzer.get_recent_activities(limit=limit)
+        raw_activities = analyzer.get_recent_activities(limit=limit, start_index=start)
         if not raw_activities:
-            return {"activities": [], "total_inspected": 0, "cached": False}
+            return {
+                "activities": [],
+                "total_inspected": 0,
+                "start": start,
+                "limit": limit,
+                "has_more": False,
+                "cached": False,
+            }
 
         parsed = [analyzer.parse_activity(a) for a in raw_activities]
         analyzer.check_activities_photos(parsed)
@@ -217,16 +231,22 @@ def list_activities(
             for act in filtered
         ]
 
+        has_more = len(raw_activities) == limit
+
         with _cache_lock:
-            _activities_cache = {
+            _activities_cache[cache_key] = {
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "data": data,
                 "total_inspected": len(raw_activities),
+                "has_more": has_more,
             }
 
         return {
             "activities": data,
             "total_inspected": len(raw_activities),
+            "start": start,
+            "limit": limit,
+            "has_more": has_more,
             "cached": False,
         }
     except Exception as e:
@@ -263,6 +283,9 @@ def _run_report_job(job_id: str, req: GenerateRequest) -> None:
 
         total_dates = len(req.dates)
         for idx, date_str in enumerate(req.dates, 1):
+            date_notes = req.notes.get(date_str)
+            if date_notes:
+                log(f"[{idx}/{total_dates}] 📝 Notiz erfasst: '{date_notes}'")
             log(f"[{idx}/{total_dates}] 📥 Lade Daten für {date_str} herunter...")
 
             try:
@@ -273,6 +296,7 @@ def _run_report_job(job_id: str, req: GenerateRequest) -> None:
                     include_tracks=True,
                     include_photos=True,
                     generate_llm_summary=req.llm_summary,
+                    user_notes=date_notes,
                     force=True,
                 )
 

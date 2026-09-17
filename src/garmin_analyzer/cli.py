@@ -268,6 +268,15 @@ def daily(
             help="Generate an AI-powered first-person diary story with embedded base64 images.",
         ),
     ] = False,
+    note: Annotated[
+        str | None,
+        typer.Option(
+            "--note",
+            "--notes",
+            "-n",
+            help="Personal context or notes to guide and shape the AI diary story (e.g. 'Mein Geburtstag').",
+        ),
+    ] = None,
     force: Annotated[
         bool,
         typer.Option(
@@ -332,6 +341,7 @@ def daily(
         include_tracks=include_tracks,
         include_photos=include_photos,
         generate_llm_summary=llm_summary,
+        user_notes=note,
         force=force,
     )
 

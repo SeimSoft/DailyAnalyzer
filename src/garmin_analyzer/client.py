@@ -508,6 +508,7 @@ class GarminAnalyzer:
         include_tracks: bool = True,
         include_photos: bool = True,
         generate_llm_summary: bool = False,
+        user_notes: str | None = None,
         force: bool = False,
     ) -> tuple[DailyHealthSummary, list[DownloadedActivity], Path | None]:
         """Downloads full daily health metrics, charts, evaluations, and any activities that occurred on that day."""
@@ -567,6 +568,7 @@ class GarminAnalyzer:
                     canonical_date,
                     daily_dir=daily_dir,
                     activity_dirs=act_dirs,
+                    user_notes=user_notes,
                 )
             except (OSError, ValueError, RuntimeError, KeyError) as err:
                 logger.warning("Failed generating AI daily diary for %s: %s", canonical_date, err)

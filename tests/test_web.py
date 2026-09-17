@@ -101,6 +101,17 @@ def test_activities_endpoint(mock_get_client, client: TestClient):
         assert data["activities"][0]["photos_count"] == 1
         assert data["activities"][0]["memreport_uploaded"] is True
         assert "/viewer?date=2026-08-24" in data["activities"][0]["viewer_url"]
+        assert data["start"] == 0
+        assert data["limit"] == 100
+        assert data["has_more"] is False
+
+        # Test with custom start and limit
+        res_page2 = client.get("/api/activities?limit=50&start=10&refresh=true")
+        assert res_page2.status_code == 200
+        data2 = res_page2.json()
+        assert data2["start"] == 10
+        assert data2["limit"] == 50
+        mock_garmin.get_activities.assert_called_with(10, 50)
 
 
 
@@ -114,6 +125,7 @@ def test_generate_job_endpoint(mock_run_job, client: TestClient):
         json={
             "dates": ["2026-08-24"],
             "activity_ids": [1001],
+            "notes": {"2026-08-24": "Mein 40. Geburtstag!"},
             "llm_summary": True,
             "upload": True,
         },
@@ -121,6 +133,11 @@ def test_generate_job_endpoint(mock_run_job, client: TestClient):
     assert res.status_code == 200
     data = res.json()
     assert "job_id" in data
+
+    # Verify mock_run_job received req with notes
+    mock_run_job.assert_called_once()
+    called_req = mock_run_job.call_args[0][1]
+    assert called_req.notes == {"2026-08-24": "Mein 40. Geburtstag!"}
 
     job_id = data["job_id"]
     res_status = client.get(f"/api/jobs/{job_id}")

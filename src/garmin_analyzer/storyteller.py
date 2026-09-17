@@ -78,10 +78,11 @@ def generate_diary_narrative(
     date_str: str,
     markdown_sources: dict[str, str],
     photo_paths: list[Path] | None = None,
+    user_notes: str | None = None,
     api_key: str | None = None,
     model: str = DEFAULT_MODEL,
 ) -> str:
-    """Calls Gemini with collected markdown metrics and optional activity photos to generate a first-person personal diary story."""
+    """Calls Gemini with collected markdown metrics, optional user notes, and optional activity photos to generate a first-person personal diary story."""
     resolved_key = (
         api_key
         or os.getenv("GEMINI_API_KEY")
@@ -101,22 +102,25 @@ def generate_diary_narrative(
     )
 
     system_instruction = (
-        "Du bist ein authentischer, reflektierter und wortgewandter Fitness- und Outdoor-Enthusiast. "
-        "Deine Aufgabe ist es, einen persönlichen Tagebucheintrag für den heutigen Tag auf Deutsch "
-        "in der ersten Person ('Ich-Form': 'Ich bin heute aufgewacht', 'Mein Ruhepuls lag bei', 'Ich fühlte mich') zu schreiben, "
-        "als hättest du ihn am Abend ganz persönlich in dein privates Journal geschrieben.\n\n"
-        "Stil- und Tonvorgaben:\n"
+        "Du bist ein authentischer, reflektierter und wortgewandter Mensch, der abends sein persönliches Tagebuch schreibt.\n"
+        "Deine Aufgabe ist es, einen lebendigen, echten Tagebucheintrag für den heutigen Tag auf Deutsch "
+        "in der ersten Person ('Ich-Form': 'Ich bin heute aufgewacht', 'Ich fühlte mich...') zu verfassen.\n\n"
+        "STRIKTE REGELN ZU BIOMETRISCHEN DATEN & ZAHLEN (EXTREM WICHTIG):\n"
+        "- NENNE KEINE ROHE SENSOR- ODER BIOMETRIEDATEN UND KEINE STATISTIK-ZAHLEN!\n"
+        "- Niemand schreibt in ein echtes Tagebuch: 'Mein Ruhepuls lag bei 52 bpm', 'Meine HRV betrug 65 ms', "
+        "'Mein Schlafscore war 82' oder 'Mein Stresslevel lag bei 35'. Das wirkt künstlich und ist STRENGSTENS UNTERSAGT!\n"
+        "- Übersetze alle körperlichen Messwerte AUSSCHLIESSLICH in natürliche menschliche Empfindungen, Gefühle und Stimmungen:\n"
+        "  * Schlaf: Schreibe einfach, ob du tief, erholsam und fest geschlafen hast und frisch aufgewacht bist, oder ob die Nacht unruhig, zäh war und du wie gerädert aus dem Bett gestiegen bist. Punkt.\n"
+        "  * Stress & Belastung: Wenn viel Stress gemessen wurde, nenne keine Zahlen, sondern sage einfach, dass der Tag fordernd, hektisch oder nervenaufreibend war und du unter Strom standst – oder umgekehrt, dass es ein herrlich gelassener, ruhiger Tag war.\n"
+        "  * Energie / Akku: Beschreibe, ob du voller Energie und Tatendrang durch den Tag gegangen bist oder ob die Batterien am Nachmittag/Abend komplett leer waren.\n"
+        "  * Sport & Aktivitäten: Erzähle von der Aktivität aus dem subjektiven Erleben (die Landschaft, das Wetter, das Gefühl in den Beinen, die Anstrengung am Berg, der Atem, das Glücksgefühl) – verfasse KEINE technischen Analysen oder Datenlisten.\n\n"
+        "STIL, TITEL & FORM:\n"
         "- Schreibe ausnahmslos auf Deutsch in der Ich-Form.\n"
-        "- Lebendig, introspektiv und fesselnd: Verfasse eine fließende Geschichte und KEINE Datentabellen oder Aufzählungen.\n"
-        "- Verwebe die körperlichen Messwerte (Schlafqualität und Dauer, Ruhepuls, nächtlicher HRV-Erholungswert, Tagesstress, "
-        "Body Battery Energieverbrauch und Aufladung) natürlich mit den Erlebnissen, Gedanken und dem eigenen Körpergefühl.\n"
-        "- Falls Aktivitäten stattfanden (Klettern, Wandern, Laufen): Beschreibe die Aktivität atmosphärisch (Strecke, Umgebung, Höhenmeter, "
-        "Anstrengung, wie sich Muskeln und Atmung anfühlten, Wetter/Stimmung).\n"
-        "- Stil & Titel: Beginne deinen Text zwingend in der ALLERERSTEN Zeile mit einer kreativen, bildhaften und individuellen Markdown-H1-Überschrift (# <Titel>), die das prägendste Erlebnis, die Aktivität, das Wetter oder die Stimmung des Tages fesselnd aufgreift (z.B. '# 🧗 Fels, Nebel und Gipfelglück: Klettersteig am Dachstein' oder '# 🚴 Asphalt, Gegenwind und Gipfelglück: Die Feilnbach-Runde'). Verwende NIEMALS einfallslos 'Tagebucheintrag: <datum>' oder 'Mein Tag'!\n"
-        "- Direkt unter dem H1-Titel folgt eine dezente Datumszeile (z.B. '*Montag, 24. August 2026*') und danach die fließende Erzählung.\n"
-        "- Fließender Aufbau: Morgen & Erholung -> Tagesverlauf & Belastungen -> Die Aktivität/Bewegung -> Abendliche Reflexion.\n"
-        "- Erwähne keinesfalls, dass dies von einer KI oder anhand von Datendateien erstellt wurde. Es soll ein 100% echter, "
-        "menschlicher Tagebucheintrag sein. Bringe den Eintrag zu einem runden, vollständigen Abschluss ohne abrupten Abbruch."
+        "- Beginne zwingend in der ALLERERSTEN Zeile mit einer kreativen, bildhaften Markdown-H1-Überschrift (# <Titel>), die das prägendste Ereignis, die Stimmung oder den besonderen Anlass des Tages aufgreift (z.B. '# 🧗 Fels, Nebel und Gipfelglück: Klettersteig am Dachstein' oder '# 🎂 Ein unvergesslicher Geburtstag auf den Spuren der Berge'). Verwende NIEMALS einfallslos 'Tagebucheintrag: <datum>' oder 'Mein Tag'!\n"
+        "- Direkt unter dem H1-Titel folgt eine dezente Datumszeile in Kursivschrift (z.B. '*Montag, 24. August 2026*') und danach die fließende Erzählung.\n"
+        "- Fließender Aufbau: Morgen & Erholung -> Tagesverlauf & Stimmung -> Die Aktivität & Natur -> Abendliche Reflexion.\n"
+        "- Authentischer, runder Abschluss des Eintrags ohne abrupten Abbruch.\n"
+        "- Erwähne keinesfalls, dass dies von einer KI oder anhand von Datendateien erstellt wurde."
     )
 
     # Prepare multimodal content with photos if available
@@ -136,18 +140,31 @@ def generate_diary_narrative(
     photo_instruction = ""
     if image_parts:
         photo_instruction = (
-            "\n\nWICHTIG: Ich habe dir auch Fotos meiner heutigen Aktivitäten beigefügt! "
+            "\n\nWICHTIG - FOTOS:\n"
+            "Ich habe dir auch Fotos meiner heutigen Aktivitäten beigefügt! "
             "Lass dich ganz besonders von diesen Bildern inspirieren: Betrachte die Felsen, "
             "das Klettern/Wandern, die Ausrüstung, die Berglandschaft, das Wetter und die Atmosphäre, "
             "und binde diese visuellen Eindrücke als lebendige persönliche Erinnerungen in deinen Text ein."
         )
 
+    user_notes_block = ""
+    if user_notes and user_notes.strip():
+        user_notes_block = (
+            f"\n\n🔥 PERSÖNLICHE ZUSATZINFORMATIONEN DES NUTZERS (HÖCHSTE PRIORITÄT):\n"
+            f"\"{user_notes.strip()}\"\n\n"
+            "WICHTIGSTE ANWEISUNG FÜR DIESEN EINTRAG:\n"
+            "Diese Zusatznotiz ist das Herzstück und der emotionale Dreh- und Angelpunkt des Tages! "
+            "Baue die gesamte Handlung, die Gedanken, die Stimmung und insbesondere den kreativen H1-Titel "
+            "zwingend und entscheidend um dieses persönliche Ereignis bzw. diesen Kontext herum auf."
+        )
+
     prompt = (
         f"Datum: {date_str}\n\n"
-        f"Hier sind die gemessenen biometrischen Werte, Bewertungen und Aktivitätsdaten dieses Tages:\n\n"
+        f"{user_notes_block}\n\n"
+        f"Hier sind die Hintergrunddaten dieses Tages (ACHTUNG: Nutze sie nur für dein Gespür für mein Befinden; nenne KEINE Zahlen, bpm, Millisekunden oder Scores im Text!):\n\n"
         f"{sources_text}"
         f"{photo_instruction}\n\n"
-        "Bitte schreibe einen fesselnden, authentischen Tagebucheintrag auf Deutsch mit einem kreativen, atmosphärischen H1-Titel (kein generisches 'Tagebucheintrag: Datum') in der ersten Zeile."
+        "Bitte schreibe nun einen fesselnden, authentischen Tagebucheintrag auf Deutsch mit einem kreativen, individuellen H1-Titel in der ersten Zeile."
     )
 
     contents = [*image_parts, prompt]
@@ -388,6 +405,7 @@ def generate_self_contained_daily_story(
     daily_dir: Path,
     activity_dirs: list[Path] | None = None,
     photo_paths: list[Path] | None = None,
+    user_notes: str | None = None,
     api_key: str | None = None,
 ) -> tuple[Path, str]:
     """Coordinates reading markdown sources, querying Gemini, embedding base64 images, and saving daily_story.md."""
@@ -412,7 +430,11 @@ def generate_self_contained_daily_story(
                 )
 
     narrative = generate_diary_narrative(
-        date_str, md_sources, photo_paths=all_photos, api_key=api_key
+        date_str,
+        md_sources,
+        photo_paths=all_photos,
+        user_notes=user_notes,
+        api_key=api_key,
     )
     full_markdown = assemble_self_contained_diary(
         date_str, narrative, daily_dir, activity_dirs=activity_dirs

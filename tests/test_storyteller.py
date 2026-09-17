@@ -122,6 +122,31 @@ def test_generate_diary_narrative_with_photos(mock_client_cls, tmp_path: Path):
     assert call_kwargs["config"].max_output_tokens == 8192
 
 
+@patch("garmin_analyzer.storyteller.genai.Client")
+def test_generate_diary_narrative_with_user_notes(mock_client_cls):
+    mock_client = MagicMock()
+    mock_response = MagicMock()
+    mock_response.text = "# 🎂 Mein Geburtstag am Fels\n*16. Juni 2026*\n\nEin ganz besonderer Tag."
+    mock_client.models.generate_content.return_value = mock_response
+    mock_client_cls.return_value = mock_client
+
+    result = generate_diary_narrative(
+        date_str="2026-06-16",
+        markdown_sources={"daily": "Erholung gut"},
+        user_notes="Mein 40. Geburtstag mit Familie und Freunden!",
+        api_key="fake-test-key",
+    )
+
+    assert "Mein Geburtstag" in result
+    call_kwargs = mock_client.models.generate_content.call_args.kwargs
+    prompt_str = call_kwargs["contents"][-1]
+    assert "Mein 40. Geburtstag" in prompt_str
+    assert "PERSÖNLICHE ZUSATZINFORMATIONEN DES NUTZERS (HÖCHSTE PRIORITÄT)" in prompt_str
+    # Verify strict no biometric numbers rule in system instruction
+    sys_inst = call_kwargs["config"].system_instruction
+    assert "NENNE KEINE ROHE SENSOR- ODER BIOMETRIEDATEN" in sys_inst
+
+
 @patch("garmin_analyzer.storyteller.generate_diary_narrative")
 def test_generate_self_contained_daily_story(mock_generate, tmp_path: Path):
     mock_generate.return_value = "Today was a balanced day."
