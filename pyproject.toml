@@ -1,0 +1,47 @@
+[project]
+name = "garmin-analyzer"
+version = "0.1.0"
+description = "Download and analyze recent Garmin activities, telemetry, GPS tracks, daily health stats, and photos."
+readme = "README.md"
+authors = [
+    { name = "Florian Renneke", email = "florianrenneke@gmail.com" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115.0",
+    "garminconnect>=0.2.16",
+    "garth>=0.5.0",
+    "google-genai>=2.0.0",
+    "matplotlib>=3.11.2",
+    "plotly>=7.1.0",
+    "pydantic>=2.7.0",
+    "python-dateutil>=2.9.0.post0",
+    "python-multipart>=0.0.9",
+    "requests>=2.31.0",
+    "rich>=13.7.0",
+    "typer>=0.12.0",
+    "uvicorn>=0.30.0",
+]
+
+[project.scripts]
+garmin-analyzer = "garmin_analyzer.cli:app"
+garmin-dl = "garmin_analyzer.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-mock>=3.15.1",
+    "ruff>=0.16.8",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+

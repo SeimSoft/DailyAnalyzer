@@ -1,0 +1,35 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv/
+env/
+venv/
+
+# Environment and tokens
+.env
+.env.*
+!.env.example
+garmin_tokens/
+.garminconnect/
+tokens/
+*.token
+
+# Data downloads & exports
+garmin_export/
+garmin_data/
+today/
+*.fit
+*.gpx
+*.tcx
+*.zip
+
+# Temporary files (workspace tmp)
+tmp/
+.pytest_cache/
+.ruff_cache/

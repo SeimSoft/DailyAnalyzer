@@ -1,0 +1,1106 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Garmin Analyzer | Activities & Reports</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #090D16;
+      --bg-card: rgba(18, 24, 38, 0.75);
+      --bg-card-hover: rgba(28, 36, 56, 0.85);
+      --border-color: rgba(255, 255, 255, 0.08);
+      --border-glow: rgba(56, 189, 248, 0.35);
+      --primary: #00A3E0;
+      --primary-hover: #38BDF8;
+      --accent-rose: #F43F5E;
+      --accent-emerald: #10B981;
+      --accent-amber: #F59E0B;
+      --text-main: #F8FAFC;
+      --text-muted: #94A3B8;
+      --text-dim: #64748B;
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 20px;
+      --shadow-glow: 0 10px 30px -10px rgba(0, 163, 224, 0.25);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background-image: 
+        radial-gradient(circle at 15% 10%, rgba(0, 163, 224, 0.12) 0%, transparent 40%),
+        radial-gradient(circle at 85% 85%, rgba(244, 63, 94, 0.08) 0%, transparent 40%);
+      background-attachment: fixed;
+      line-height: 1.5;
+    }
+
+    /* --- Utilities --- */
+    .hidden { display: none !important; }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+
+    /* --- Navigation Header --- */
+    header {
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      background: rgba(9, 13, 22, 0.8);
+      border-bottom: 1px solid var(--border-color);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .brand-icon {
+      width: 38px;
+      height: 38px;
+      background: linear-gradient(135deg, #00A3E0, #3B82F6);
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.25rem;
+      box-shadow: 0 4px 14px rgba(0, 163, 224, 0.4);
+    }
+
+    .brand h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      background: linear-gradient(to right, #FFFFFF, #94A3B8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.35rem 0.75rem;
+      border-radius: 9999px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      border: 1px solid var(--border-color);
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .badge-cyan { color: var(--primary-hover); border-color: rgba(56, 189, 248, 0.3); background: rgba(56, 189, 248, 0.08); }
+    .badge-rose { color: #FDA4AF; border-color: rgba(244, 63, 94, 0.3); background: rgba(244, 63, 94, 0.08); }
+    .badge-emerald { color: #6EE7B7; border-color: rgba(16, 185, 129, 0.3); background: rgba(16, 185, 129, 0.08); }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 0.6rem 1.2rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s ease;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #00A3E0, #2563EB);
+      color: #FFFFFF;
+      box-shadow: 0 4px 15px rgba(0, 163, 224, 0.3);
+    }
+    .btn-primary:hover {
+      background: linear-gradient(135deg, #38BDF8, #3B82F6);
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(0, 163, 224, 0.45);
+    }
+    .btn-primary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+    }
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    /* --- Login Section --- */
+    #login-section {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+
+    .login-card {
+      background: var(--bg-card);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 2.5rem;
+      width: 100%;
+      max-width: 440px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+      text-align: center;
+      animation: fadeIn 0.4s ease-out;
+    }
+
+    .login-icon {
+      width: 60px;
+      height: 60px;
+      background: rgba(56, 189, 248, 0.1);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.75rem;
+      margin: 0 auto 1.5rem auto;
+    }
+
+    .login-card h2 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+
+    .login-card p {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      margin-bottom: 1.75rem;
+    }
+
+    .input-group {
+      margin-bottom: 1.25rem;
+      text-align: left;
+    }
+
+    .input-group label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 0.4rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .input-group input {
+      width: 100%;
+      padding: 0.8rem 1rem;
+      background: rgba(10, 14, 23, 0.8);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      color: #FFFFFF;
+      font-size: 0.95rem;
+      transition: all 0.2s;
+    }
+    .input-group input:focus {
+      outline: none;
+      border-color: var(--primary-hover);
+      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
+    }
+
+    /* --- App Main Dashboard --- */
+    main {
+      flex: 1;
+      max-width: 1380px;
+      margin: 0 auto;
+      width: 100%;
+      padding: 2rem;
+    }
+
+    /* Top Stats Grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1.25rem;
+      margin-bottom: 2rem;
+    }
+
+    .stat-card {
+      background: var(--bg-card);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 1.25rem 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 1.25rem;
+      transition: transform 0.2s, border-color 0.2s;
+    }
+    .stat-card:hover {
+      transform: translateY(-2px);
+      border-color: rgba(255, 255, 255, 0.15);
+    }
+
+    .stat-icon {
+      font-size: 2rem;
+      width: 50px;
+      height: 50px;
+      border-radius: var(--radius-sm);
+      background: rgba(255, 255, 255, 0.04);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .stat-info .stat-val {
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: #FFFFFF;
+      line-height: 1.2;
+    }
+
+    .stat-info .stat-lbl {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    /* Controls & Toolbar */
+    .toolbar {
+      background: var(--bg-card);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 1rem 1.5rem;
+      margin-bottom: 1.5rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .toolbar-left {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex: 1;
+      min-width: 280px;
+    }
+
+    .search-box {
+      position: relative;
+      flex: 1;
+      max-width: 380px;
+    }
+
+    .search-box input {
+      width: 100%;
+      padding: 0.6rem 1rem 0.6rem 2.4rem;
+      background: rgba(10, 14, 23, 0.7);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      color: #FFFFFF;
+      font-size: 0.875rem;
+    }
+    .search-box input:focus {
+      outline: none;
+      border-color: var(--primary-hover);
+    }
+    .search-icon {
+      position: absolute;
+      left: 0.8rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-dim);
+      font-size: 0.9rem;
+    }
+
+    .toolbar-right {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    /* Activity Table & Cards */
+    .table-container {
+      background: var(--bg-card);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+      margin-bottom: 6rem;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+
+    thead {
+      background: rgba(12, 17, 28, 0.95);
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    th {
+      padding: 1rem 1.25rem;
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+    }
+
+    tbody tr {
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      transition: background 0.15s;
+    }
+    tbody tr:hover {
+      background: var(--bg-card-hover);
+    }
+    tbody tr.selected {
+      background: rgba(56, 189, 248, 0.08);
+      border-left: 3px solid var(--primary);
+    }
+
+    td {
+      padding: 1rem 1.25rem;
+      font-size: 0.9rem;
+      vertical-align: middle;
+    }
+
+    .custom-checkbox {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+      accent-color: var(--primary);
+      border-radius: 4px;
+    }
+
+    .activity-name-cell {
+      font-weight: 600;
+      color: #FFFFFF;
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+    }
+
+    .activity-loc {
+      font-size: 0.775rem;
+      font-weight: 400;
+      color: var(--text-dim);
+    }
+
+    .photo-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      background: rgba(244, 63, 94, 0.12);
+      border: 1px solid rgba(244, 63, 94, 0.3);
+      color: #FDA4AF;
+      padding: 0.25rem 0.65rem;
+      border-radius: 9999px;
+      font-size: 0.775rem;
+      font-weight: 700;
+    }
+
+    /* Sticky Floating Action Bar */
+    .floating-bar {
+      position: fixed;
+      bottom: 2rem;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15, 21, 34, 0.95);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      border-radius: var(--radius-lg);
+      padding: 1rem 1.75rem;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6), 0 0 20px rgba(56, 189, 248, 0.15);
+      display: flex;
+      align-items: center;
+      gap: 2rem;
+      z-index: 100;
+      animation: slideUp 0.3s ease-out;
+      max-width: 90vw;
+    }
+
+    .floating-options {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+    }
+
+    .toggle-label {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-main);
+      cursor: pointer;
+    }
+
+    /* Modal / Progress Drawer */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+      padding: 1.5rem;
+      animation: fadeIn 0.2s ease-out;
+    }
+
+    .modal-content {
+      background: #0F1626;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      width: 100%;
+      max-width: 720px;
+      max-height: 85vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.8);
+      overflow: hidden;
+    }
+
+    .modal-header {
+      padding: 1.25rem 1.75rem;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .modal-body {
+      padding: 1.5rem 1.75rem;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .progress-bar-container {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 9999px;
+      height: 8px;
+      overflow: hidden;
+      margin: 1rem 0 1.5rem 0;
+    }
+
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #00A3E0, #10B981);
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+
+    .terminal-logs {
+      background: #070B12;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: var(--radius-sm);
+      padding: 1rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      color: #E2E8F0;
+      height: 280px;
+      overflow-y: auto;
+      line-height: 1.6;
+    }
+
+    .log-line {
+      margin-bottom: 0.35rem;
+      word-break: break-all;
+    }
+    .log-time { color: var(--text-dim); margin-right: 0.5rem; }
+
+    /* Keyframes */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: scale(0.98); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    @keyframes slideUp {
+      from { opacity: 0; transform: translate(-50%, 20px); }
+      to { opacity: 1; transform: translate(-50%, 0); }
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top-color: #FFFFFF;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header>
+    <div class="brand">
+      <div class="brand-icon">⚡</div>
+      <div>
+        <h1>Garmin Analyzer Web</h1>
+      </div>
+    </div>
+    <div class="nav-actions">
+      <div id="status-badges" class="hidden">
+        <span id="badge-memreport" class="badge badge-cyan">📡 MemReport</span>
+        <span id="badge-gemini" class="badge badge-emerald">✨ Gemini Aktiv</span>
+      </div>
+      <button id="btn-refresh" class="btn btn-secondary hidden" onclick="loadActivities(true)">
+        🔄 Aktualisieren
+      </button>
+      <button id="btn-logout" class="btn btn-secondary hidden" onclick="logout()">
+        Abmelden
+      </button>
+    </div>
+  </header>
+
+  <!-- Login Section -->
+  <div id="login-section">
+    <div class="login-card">
+      <div class="login-icon">🔒</div>
+      <h2>Garmin Analyzer Login</h2>
+      <p>Bitte gib das Admin-Passwort ein, um auf die Aktivitäten und Report-Tools zuzugreifen.</p>
+      
+      <form id="login-form" onsubmit="handleLogin(event)">
+        <div class="input-group">
+          <label for="password">Admin Passwort</label>
+          <input type="password" id="password" required autofocus placeholder="Passwort eingeben...">
+        </div>
+        <div id="login-error" style="color: #F87171; font-size: 0.85rem; margin-bottom: 1rem;" class="hidden"></div>
+        <button type="submit" id="login-btn" class="btn btn-primary" style="width: 100%;">
+          Entsperren & Aktivitäten laden
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Dashboard Section -->
+  <main id="app-section" class="hidden">
+    <!-- Top Stats -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon">📸</div>
+        <div class="stat-info">
+          <div id="stat-activities-count" class="stat-val">-</div>
+          <div class="stat-lbl">Aktivitäten mit Fotos</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">🖼️</div>
+        <div class="stat-info">
+          <div id="stat-photos-total" class="stat-val">-</div>
+          <div class="stat-lbl">Gefundene Fotos</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">🎯</div>
+        <div class="stat-info">
+          <div id="stat-selected-count" class="stat-val">0</div>
+          <div class="stat-lbl">Ausgewählt für Report</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">🔍</div>
+        <div class="stat-info">
+          <div id="stat-inspected-total" class="stat-val">100</div>
+          <div class="stat-lbl">Gescannte Aktivitäten</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <div class="search-box">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="search-input" placeholder="Nach Name, Ort oder Datum filtern..." oninput="filterActivities()">
+        </div>
+      </div>
+      <div class="toolbar-right">
+        <button class="btn btn-secondary" onclick="selectAll(true)">Alle auswählen</button>
+        <button class="btn btn-secondary" onclick="selectAll(false)">Auswahl aufheben</button>
+      </div>
+    </div>
+
+    <!-- Activity Table -->
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 40px;">
+              <input type="checkbox" id="select-all-checkbox" class="custom-checkbox" onchange="toggleSelectAll(this)">
+            </th>
+            <th>Datum</th>
+            <th>Sportart</th>
+            <th>Aktivität & Ort</th>
+            <th style="text-align: right;">Distanz</th>
+            <th style="text-align: right;">Dauer</th>
+            <th style="text-align: right;">Puls</th>
+            <th style="text-align: right;">Fotos</th>
+          </tr>
+        </thead>
+        <tbody id="activity-tbody">
+          <!-- Rows will be injected dynamically -->
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <!-- Floating Action Bar -->
+  <div id="floating-bar" class="floating-bar hidden">
+    <div>
+      <span id="selected-summary-text" style="font-weight: 700; color: #FFFFFF;">0 Aktivitäten ausgewählt</span>
+    </div>
+    <div class="floating-options">
+      <label class="toggle-label">
+        <input type="checkbox" id="opt-llm" checked class="custom-checkbox">
+        <span>✨ KI-Tagebuch mit kreativem Titel</span>
+      </label>
+      <label class="toggle-label">
+        <input type="checkbox" id="opt-upload" checked class="custom-checkbox">
+        <span>📤 Zu MemReport hochladen</span>
+      </label>
+    </div>
+    <button id="btn-generate" class="btn btn-primary" onclick="startGeneration()">
+      🚀 Report generieren & hochladen
+    </button>
+  </div>
+
+  <!-- Execution & Progress Modal -->
+  <div id="progress-modal" class="modal-overlay hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modal-title" style="font-weight: 700; display: flex; align-items: center; gap: 0.6rem;">
+          <span class="spinner" id="modal-spinner"></span>
+          Report-Generierung läuft...
+        </h3>
+        <button class="btn btn-secondary" style="padding: 0.3rem 0.6rem;" onclick="closeModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="progress-bar-container">
+          <div id="job-progress-bar" class="progress-bar"></div>
+        </div>
+        <div class="terminal-logs" id="terminal-logs">
+          <!-- Logs will stream here -->
+        </div>
+        <div id="job-results" style="margin-top: 1.25rem;" class="hidden"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- JavaScript Logic -->
+  <script>
+    let activities = [];
+    let selectedActivityIds = new Set();
+    let currentJobId = null;
+    let eventSource = null;
+
+    // Check status on initial load
+    window.addEventListener('DOMContentLoaded', async () => {
+      await checkAuthStatus();
+    });
+
+    async function checkAuthStatus() {
+      try {
+        const res = await fetch('/api/auth/status');
+        const data = await res.json();
+        if (data.authenticated) {
+          showApp(data);
+          loadActivities();
+        } else {
+          showLogin();
+        }
+      } catch (err) {
+        showLogin();
+      }
+    }
+
+    function showLogin() {
+      document.getElementById('login-section').classList.remove('hidden');
+      document.getElementById('app-section').classList.add('hidden');
+      document.getElementById('status-badges').classList.add('hidden');
+      document.getElementById('btn-refresh').classList.add('hidden');
+      document.getElementById('btn-logout').classList.add('hidden');
+    }
+
+    function showApp(statusData) {
+      document.getElementById('login-section').classList.add('hidden');
+      document.getElementById('app-section').classList.remove('hidden');
+      document.getElementById('status-badges').classList.remove('hidden');
+      document.getElementById('btn-refresh').classList.remove('hidden');
+      document.getElementById('btn-logout').classList.remove('hidden');
+
+      if (statusData) {
+        const memBadge = document.getElementById('badge-memreport');
+        if (statusData.memreport_url) {
+          memBadge.textContent = `📡 MemReport: ${statusData.memreport_url.replace(/https?:\/\//, '')}`;
+        }
+        const gemBadge = document.getElementById('badge-gemini');
+        if (!statusData.has_gemini_key) {
+          gemBadge.textContent = '⚠️ Kein GEMINI_API_KEY';
+          gemBadge.className = 'badge badge-rose';
+        }
+      }
+    }
+
+    async function handleLogin(e) {
+      e.preventDefault();
+      const pwd = document.getElementById('password').value;
+      const errorDiv = document.getElementById('login-error');
+      const btn = document.getElementById('login-btn');
+      
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Prüfe Passwort...';
+      errorDiv.classList.add('hidden');
+
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: pwd })
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail || 'Login fehlgeschlagen');
+        }
+        await checkAuthStatus();
+      } catch (err) {
+        errorDiv.textContent = err.message;
+        errorDiv.classList.remove('hidden');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Entsperren & Aktivitäten laden';
+      }
+    }
+
+    async function logout() {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      selectedActivityIds.clear();
+      showLogin();
+    }
+
+    async function loadActivities(refresh = false) {
+      const tbody = document.getElementById('activity-tbody');
+      tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 3rem; color: #94A3B8;">
+        <span class="spinner" style="width: 24px; height: 24px; border-width: 3px; margin-bottom: 0.75rem;"></span><br>
+        Lade die letzten 100 Garmin Aktivitäten und prüfe Fotos...
+      </td></tr>`;
+
+      try {
+        const url = `/api/activities?limit=100${refresh ? '&refresh=true' : ''}`;
+        const res = await fetch(url);
+        if (!res.ok) {
+          if (res.status === 401) {
+            showLogin();
+            return;
+          }
+          throw new Error('Aktivitäten konnten nicht geladen werden');
+        }
+        const data = await res.json();
+        activities = data.activities || [];
+        
+        // Update stats
+        document.getElementById('stat-activities-count').textContent = activities.length;
+        const totalPhotos = activities.reduce((acc, a) => acc + (a.photos_count || 0), 0);
+        document.getElementById('stat-photos-total').textContent = totalPhotos;
+        document.getElementById('stat-inspected-total').textContent = data.total_inspected || 100;
+
+        renderActivities(activities);
+      } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 2rem; color: #F87171;">
+          Fehler beim Laden: ${err.message}
+        </td></tr>`;
+      }
+    }
+
+    function renderActivities(list) {
+      const tbody = document.getElementById('activity-tbody');
+      if (!list.length) {
+        tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 3rem; color: #94A3B8;">
+          Keine Aktivitäten mit Fotos gefunden.
+        </td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = list.map(act => {
+        const isSelected = selectedActivityIds.has(act.activity_id);
+        const sportIcon = getSportIcon(act.type, act.sub_sport);
+        return `
+          <tr id="row-${act.activity_id}" class="${isSelected ? 'selected' : ''}">
+            <td>
+              <input type="checkbox" class="custom-checkbox act-checkbox" 
+                value="${act.activity_id}" 
+                data-date="${act.date}"
+                ${isSelected ? 'checked' : ''} 
+                onchange="toggleSelect(${act.activity_id}, this.checked)">
+            </td>
+            <td class="mono" style="color: #38BDF8; font-weight: 600;">${act.date}</td>
+            <td>
+              <span class="badge badge-cyan" style="gap: 0.3rem;">
+                ${sportIcon} ${formatSport(act.type, act.sub_sport)}
+              </span>
+            </td>
+            <td>
+              <div class="activity-name-cell">
+                <span>${escapeHtml(act.name)}</span>
+                ${act.location_name ? `<span class="activity-loc">📍 ${escapeHtml(act.location_name)}</span>` : ''}
+              </div>
+            </td>
+            <td style="text-align: right; font-weight: 600;">${act.distance_km ? act.distance_km + ' km' : '-'}</td>
+            <td style="text-align: right;" class="mono">${act.duration || '-'}</td>
+            <td style="text-align: right;" class="mono">${act.avg_hr ? act.avg_hr + ' bpm' : '-'}</td>
+            <td style="text-align: right;">
+              <span class="photo-pill">📸 ${act.photos_count}</span>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      updateSelectionUI();
+    }
+
+    function getSportIcon(type, subSport) {
+      const t = (type || '').toLowerCase();
+      const s = (subSport || '').toLowerCase();
+      if (t.includes('run')) return '🏃';
+      if (t.includes('cycl') || t.includes('bike')) return '🚴';
+      if (t.includes('hik') || t.includes('walk')) return '🥾';
+      if (t.includes('ski') || s.includes('skitour')) return '🎿';
+      if (t.includes('climb') || s.includes('climb')) return '🧗';
+      return '⚡';
+    }
+
+    function formatSport(type, subSport) {
+      if (subSport && subSport !== 'generic') {
+        return subSport.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+      }
+      return (type || 'Aktivität').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    }
+
+    function filterActivities() {
+      const q = document.getElementById('search-input').value.toLowerCase().trim();
+      const filtered = activities.filter(a => {
+        return (a.name || '').toLowerCase().includes(q) ||
+               (a.date || '').toLowerCase().includes(q) ||
+               (a.location_name || '').toLowerCase().includes(q) ||
+               (a.type || '').toLowerCase().includes(q);
+      });
+      renderActivities(filtered);
+    }
+
+    function toggleSelect(id, checked) {
+      if (checked) {
+        selectedActivityIds.add(id);
+      } else {
+        selectedActivityIds.delete(id);
+      }
+      const row = document.getElementById(`row-${id}`);
+      if (row) {
+        row.classList.toggle('selected', checked);
+      }
+      updateSelectionUI();
+    }
+
+    function selectAll(check) {
+      const checkboxes = document.querySelectorAll('.act-checkbox');
+      checkboxes.forEach(cb => {
+        const id = parseInt(cb.value);
+        cb.checked = check;
+        if (check) selectedActivityIds.add(id);
+        else selectedActivityIds.delete(id);
+        const row = document.getElementById(`row-${id}`);
+        if (row) row.classList.toggle('selected', check);
+      });
+      updateSelectionUI();
+    }
+
+    function toggleSelectAll(masterCb) {
+      selectAll(masterCb.checked);
+    }
+
+    function updateSelectionUI() {
+      const count = selectedActivityIds.size;
+      document.getElementById('stat-selected-count').textContent = count;
+      
+      const floatingBar = document.getElementById('floating-bar');
+      const text = document.getElementById('selected-summary-text');
+      
+      if (count > 0) {
+        floatingBar.classList.remove('hidden');
+        text.textContent = `${count} ${count === 1 ? 'Aktivität' : 'Aktivitäten'} ausgewählt`;
+      } else {
+        floatingBar.classList.add('hidden');
+      }
+
+      const masterCb = document.getElementById('select-all-checkbox');
+      masterCb.checked = activities.length > 0 && count === activities.length;
+    }
+
+    async function startGeneration() {
+      if (selectedActivityIds.size === 0) return;
+
+      const selectedActs = activities.filter(a => selectedActivityIds.has(a.activity_id));
+      const dates = Array.from(new Set(selectedActs.map(a => a.date)));
+      const actIds = Array.from(selectedActivityIds);
+
+      const llmSummary = document.getElementById('opt-llm').checked;
+      const upload = document.getElementById('opt-upload').checked;
+
+      // Open modal
+      const modal = document.getElementById('progress-modal');
+      const logs = document.getElementById('terminal-logs');
+      const pBar = document.getElementById('job-progress-bar');
+      const resultsDiv = document.getElementById('job-results');
+      const modalTitle = document.getElementById('modal-title');
+      const spinner = document.getElementById('modal-spinner');
+
+      modal.classList.remove('hidden');
+      logs.innerHTML = '';
+      pBar.style.width = '0%';
+      resultsDiv.classList.add('hidden');
+      resultsDiv.innerHTML = '';
+      spinner.classList.remove('hidden');
+      modalTitle.innerHTML = '<span class="spinner"></span> Report-Generierung läuft...';
+
+      try {
+        const res = await fetch('/api/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            dates: dates,
+            activity_ids: actIds,
+            llm_summary: llmSummary,
+            upload: upload
+          })
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail || 'Starten des Jobs fehlgeschlagen');
+        }
+
+        const data = await res.json();
+        currentJobId = data.job_id;
+        streamLogs(currentJobId);
+
+      } catch (err) {
+        logs.innerHTML = `<div class="log-line" style="color: #F87171;">❌ Fehler: ${err.message}</div>`;
+        spinner.classList.add('hidden');
+        modalTitle.textContent = 'Fehler beim Starten';
+      }
+    }
+
+    function streamLogs(jobId) {
+      if (eventSource) eventSource.close();
+
+      const logsDiv = document.getElementById('terminal-logs');
+      const pBar = document.getElementById('job-progress-bar');
+      const resultsDiv = document.getElementById('job-results');
+      const modalTitle = document.getElementById('modal-title');
+      const spinner = document.getElementById('modal-spinner');
+
+      eventSource = new EventSource(`/api/jobs/${jobId}/stream`);
+
+      eventSource.onmessage = (e) => {
+        const payload = JSON.parse(e.data);
+
+        if (payload.type === 'log') {
+          const line = document.createElement('div');
+          line.className = 'log-line';
+          line.innerHTML = `<span class="log-time">${payload.log.timestamp}</span> ${escapeHtml(payload.log.message)}`;
+          logsDiv.appendChild(line);
+          logsDiv.scrollTop = logsDiv.scrollHeight;
+
+          pBar.style.width = `${payload.progress}%`;
+        }
+
+        if (payload.type === 'done') {
+          eventSource.close();
+          spinner.classList.add('hidden');
+          pBar.style.width = '100%';
+
+          if (payload.status === 'completed') {
+            modalTitle.innerHTML = '✅ Erfolgreich abgeschlossen!';
+            
+            // Render results
+            resultsDiv.classList.remove('hidden');
+            let linksHtml = '<div style="margin-top: 1rem; display: flex; flex-direction: column; gap: 0.5rem;">';
+            
+            (payload.results || []).forEach(r => {
+              if (r.viewer_url) {
+                linksHtml += `
+                  <a href="${r.viewer_url}" target="_blank" class="btn btn-primary" style="text-decoration: none; justify-content: space-between;">
+                    <span>📅 Report ${r.date} in MemReport ansehen</span>
+                    <span>↗</span>
+                  </a>
+                `;
+              }
+            });
+            linksHtml += '</div>';
+            resultsDiv.innerHTML = linksHtml;
+
+          } else {
+            modalTitle.innerHTML = '❌ Job fehlgeschlagen';
+          }
+        }
+      };
+
+      eventSource.onerror = () => {
+        eventSource.close();
+      };
+    }
+
+    function closeModal() {
+      document.getElementById('progress-modal').classList.add('hidden');
+      if (eventSource) eventSource.close();
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+  </script>
+</body>
+</html>
