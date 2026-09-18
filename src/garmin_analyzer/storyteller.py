@@ -12,6 +12,11 @@ from pathlib import Path
 from google import genai
 from google.genai import types
 
+from garmin_analyzer.elevation_profile import (
+    extract_elevation_points,
+    generate_elevation_markdown_block,
+    render_elevation_profile,
+)
 from garmin_analyzer.gps_map import generate_leaflet_markdown_block
 from garmin_analyzer.visualizer import generate_all_interactive_plotly_blocks
 
@@ -65,6 +70,7 @@ def collect_day_markdowns(
         md_data["evaluations"] = evaluations_path.read_text(encoding="utf-8")
 
     garmin_notes_parts: list[str] = []
+    elevation_parts: list[str] = []
 
     if activity_dirs:
         for idx, act_dir in enumerate(activity_dirs, 1):
@@ -75,22 +81,46 @@ def collect_day_markdowns(
 
             # Extract Garmin activity description/notes from raw_activity.json
             raw_activity_path = act_dir / "raw_activity.json"
+            act_name = f"Aktivität {idx}"
             if raw_activity_path.exists():
                 try:
                     raw_act = json.loads(raw_activity_path.read_text(encoding="utf-8"))
+                    act_name = raw_act.get("activityName") or act_name
                     description = raw_act.get("description")
                     if description and description.strip():
-                        act_name = raw_act.get("activityName", f"Aktivität {idx}")
                         garmin_notes_parts.append(
                             f"- **{act_name}**: {description.strip()}"
                         )
                 except (json.JSONDecodeError, OSError) as err:
                     logger.debug("Could not read Garmin notes from %s: %s", raw_activity_path, err)
 
+            # Extract elevation profile stats
+            try:
+                _, ele_stats = extract_elevation_points(act_dir)
+                if ele_stats.get("min_elevation") is not None and ele_stats.get("max_elevation") is not None:
+                    parts: list[str] = []
+                    if ele_stats.get("start_elevation") is not None:
+                        parts.append(f"Start: {ele_stats['start_elevation']:.0f}m")
+                    parts.append(f"Höchster Punkt/Gipfel: {ele_stats['max_elevation']:.0f}m")
+                    parts.append(f"Tiefster Punkt: {ele_stats['min_elevation']:.0f}m")
+                    if ele_stats.get("elevation_gain"):
+                        parts.append(f"Anstieg: +{ele_stats['elevation_gain']:.0f}m")
+                    if ele_stats.get("elevation_loss"):
+                        parts.append(f"Abstieg: -{ele_stats['elevation_loss']:.0f}m")
+                    elevation_parts.append(f"- **{act_name}**: " + ", ".join(parts))
+            except Exception as err:
+                logger.debug("Could not extract elevation stats from %s: %s", act_dir, err)
+
     if garmin_notes_parts:
         md_data["garmin_activity_notes"] = (
             "## Garmin Aktivitäts-Notizen (vom Nutzer in Garmin Connect hinterlegt)\n\n"
             + "\n".join(garmin_notes_parts)
+        )
+
+    if elevation_parts:
+        md_data["activity_elevation_stats"] = (
+            "## Höhen- und Geländeprofile der Aktivitäten\n\n"
+            + "\n".join(elevation_parts)
         )
 
     return md_data
@@ -148,7 +178,11 @@ def generate_diary_narrative(
         "die der Nutzer direkt bei der Aktivität in Garmin Connect hinterlegt hat.\n"
         "- Behandle diese Notizen als authentische, persönliche Kontextinformationen und flechte sie natürlich in den Tagebucheintrag ein.\n"
         "- Wenn sowohl Garmin-Notizen als auch Persönliche Zusatzinformationen (Nutzernotizen) vorhanden sind, "
-        "haben die Nutzernotizen die höchste Priorität, aber die Garmin-Notizen sollen ergänzend einfließen."
+        "haben die Nutzernotizen die höchste Priorität, aber die Garmin-Notizen sollen ergänzend einfließen.\n"
+        "\nWANDERUNGEN & HÖHENPROFIL:\n"
+        "- Wenn in den Hintergrunddaten Höhen- und Geländeprofile vorhanden sind (Start-, Gipfel- oder Maximalhöhe, überwundene Höhenmeter), "
+        "erzähle packend und bildhaft von den Anstiegen, dem Erklimmen des Berges, dem Erreichen des höchsten Punktes/Aussichtspunkts und dem Abstieg. "
+        "Beschreibe das körperliche Gefühl beim Steigen und die Weite der Ausblicke lebendig, anstatt bloße Zahlentabellen aufzulisten."
     )
 
     # Prepare multimodal content with photos if available
@@ -317,6 +351,35 @@ def assemble_self_contained_diary(
                             "",
                         ]
                     )
+
+            # 2. Elevation Profile: Interactive Plotly Chart & Static Image Fallback
+            elevation_file = act_dir / "elevation_profile.png"
+            if not elevation_file.exists():
+                try:
+                    render_elevation_profile(
+                        act_dir,
+                        elevation_file,
+                        title=f"Höhenprofil: {act_name}",
+                        distance_km=dist_km,
+                        elevation_gain_m=elev_m,
+                    )
+                except Exception as err:
+                    logger.debug("Could not render elevation profile for %s: %s", act_dir, err)
+
+            plotly_elevation_block = generate_elevation_markdown_block(act_dir, title=f"Höhenprofil: {act_name}")
+            b64_elevation = encode_image_to_base64(elevation_file) if elevation_file.exists() else None
+
+            if plotly_elevation_block or b64_elevation:
+                lines.extend(
+                    [
+                        f"## ⛰️ Höhenprofil: {act_name}",
+                        "",
+                    ]
+                )
+                if plotly_elevation_block:
+                    lines.extend([plotly_elevation_block, ""])
+                if b64_elevation:
+                    lines.extend([f"![Höhenprofil für {act_name}]({b64_elevation})", ""])
 
             # Photos attached to activity
             if photos_dir.exists():

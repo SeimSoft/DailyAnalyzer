@@ -338,11 +338,14 @@ def _run_report_job(job_id: str, req: GenerateRequest) -> None:
         analyzer = GarminAnalyzer(client)
 
         total_dates = len(req.dates)
+        mode_str = "KI-Tagebuch (Gemini)" if req.llm_summary else "Standard-Report (GPS, Höhenprofil, Fotos, 0€ Kosten)"
+        log(f"🚀 Starte Verarbeitung von {total_dates} Tag(en) im Modus: {mode_str}...")
+
         for idx, date_str in enumerate(req.dates, 1):
             date_notes = req.notes.get(date_str)
             if date_notes:
                 log(f"[{idx}/{total_dates}] 📝 Notiz erfasst: '{date_notes}'")
-            log(f"[{idx}/{total_dates}] 📥 Lade Daten für {date_str} herunter...")
+            log(f"[{idx}/{total_dates}] 📥 Lade Daten für {date_str} ({mode_str})...")
 
             try:
                 daily_summary, downloaded_activities, diary_path = analyzer.download_daily(

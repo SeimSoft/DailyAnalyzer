@@ -143,3 +143,22 @@ def test_generate_job_endpoint(mock_run_job, client: TestClient):
     res_status = client.get(f"/api/jobs/{job_id}")
     assert res_status.status_code == 200
     assert res_status.json()["job_id"] == job_id
+
+
+@patch("garmin_analyzer.web.app._run_report_job")
+def test_generate_deterministic_job_endpoint(mock_run_job, client: TestClient):
+    client.post("/api/auth/login", json={"password": "admin123"})
+    res = client.post(
+        "/api/generate",
+        json={
+            "dates": ["2026-08-24"],
+            "activity_ids": [1001],
+            "notes": {"2026-08-24": "Bulk-Upload ohne LLM"},
+            "llm_summary": False,
+            "upload": True,
+        },
+    )
+    assert res.status_code == 200
+    called_req = mock_run_job.call_args[0][1]
+    assert called_req.llm_summary is False
+    assert called_req.notes == {"2026-08-24": "Bulk-Upload ohne LLM"}

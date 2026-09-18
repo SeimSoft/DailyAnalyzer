@@ -157,6 +157,17 @@
       border-color: rgba(255, 255, 255, 0.2);
     }
 
+    .btn-emerald {
+      background: linear-gradient(135deg, #10B981, #059669);
+      color: #FFFFFF;
+      box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+    }
+    .btn-emerald:hover {
+      background: linear-gradient(135deg, #34D399, #10B981);
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(16, 185, 129, 0.45);
+    }
+
     /* --- Login Section --- */
     #login-section {
       flex: 1;
@@ -785,13 +796,13 @@
       <span id="selected-summary-text" style="font-weight: 700; color: #FFFFFF;">0 Aktivitäten ausgewählt</span>
     </div>
     <div class="floating-options">
-      <label class="toggle-label">
-        <input type="checkbox" id="opt-llm" checked class="custom-checkbox">
-        <span>✨ KI-Tagebuch mit kreativem Titel</span>
+      <label class="toggle-label" title="Wenn deaktiviert: Erstellt vollständige Standard-Reports (GPS-Karte, Höhenprofil, Fotos & Statistiken) mit Heuristiken ohne Gemini-Tokenkosten (0€)">
+        <input type="checkbox" id="opt-llm" checked class="custom-checkbox" onchange="updateActionBarMode()">
+        <span id="label-opt-llm">✨ KI-Tagebuch (Gemini)</span>
       </label>
       <label class="toggle-label">
-        <input type="checkbox" id="opt-upload" checked class="custom-checkbox">
-        <span>📤 Zu MemReport hochladen</span>
+        <input type="checkbox" id="opt-upload" checked class="custom-checkbox" onchange="updateActionBarMode()">
+        <span id="label-opt-upload">📤 Zu MemReport hochladen</span>
       </label>
     </div>
     <div style="display: flex; gap: 0.6rem; align-items: center;">
@@ -1167,6 +1178,31 @@
       selectAll(masterCb.checked);
     }
 
+    function updateActionBarMode() {
+      const isLlm = document.getElementById('opt-llm')?.checked ?? true;
+      const isUpload = document.getElementById('opt-upload')?.checked ?? true;
+      const labelLlm = document.getElementById('label-opt-llm');
+      const btnGen = document.getElementById('btn-generate');
+
+      if (labelLlm) {
+        labelLlm.textContent = isLlm ? '✨ KI-Tagebuch (Gemini)' : '⚡ Standard-Report (0€ Kosten)';
+      }
+
+      if (btnGen) {
+        if (isLlm) {
+          btnGen.innerHTML = isUpload ? '🚀 KI-Report hochladen' : '🚀 KI-Report lokal generieren';
+          btnGen.title = 'Erstellt ein KI-Tagebuch mit Gemini und lädt den Report hoch';
+          btnGen.classList.remove('btn-emerald');
+          btnGen.classList.add('btn-primary');
+        } else {
+          btnGen.innerHTML = isUpload ? '⚡ Standard-Report hochladen (0€)' : '⚡ Standard-Report lokal generieren (0€)';
+          btnGen.title = 'Erstellt einen vollständigen Report mit GPS, Höhenprofil, Fotos & Heuristiken (0€ Tokenkosten)';
+          btnGen.classList.remove('btn-primary');
+          btnGen.classList.add('btn-emerald');
+        }
+      }
+    }
+
     function updateSelectionUI() {
       const count = selectedActivityIds.size;
       document.getElementById('stat-selected-count').textContent = count;
@@ -1177,6 +1213,7 @@
       if (count > 0) {
         floatingBar.classList.remove('hidden');
         text.textContent = `${count} ${count === 1 ? 'Aktivität' : 'Aktivitäten'} ausgewählt`;
+        updateActionBarMode();
       } else {
         floatingBar.classList.add('hidden');
       }
@@ -1295,12 +1332,14 @@
       const spinner = document.getElementById('modal-spinner');
 
       modal.classList.remove('hidden');
-      logs.innerHTML = '<div class="log-line" style="color: var(--text-dim);">⏳ Starte Hintergrund-Job...</div>';
       pBar.style.width = '0%';
       resultsDiv.classList.add('hidden');
       resultsDiv.innerHTML = '';
       spinner.classList.remove('hidden');
-      modalTitle.innerHTML = '<span class="spinner"></span> Report-Generierung läuft...';
+
+      const titleMode = llmSummary ? 'KI-Report-Generierung läuft...' : 'Standard-Report-Generierung läuft (0€ Kosten)...';
+      modalTitle.innerHTML = `<span class="spinner" id="modal-spinner"></span> ${titleMode}`;
+      logs.innerHTML = `<div class="log-line" style="color: var(--text-dim);">⏳ Starte Hintergrund-Job (${llmSummary ? 'mit Gemini KI-Tagebuch' : 'Standard-Report ohne LLM-Kosten'})...</div>`;
 
       try {
         const res = await fetch('/api/generate', {

@@ -22,6 +22,8 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from garmin_analyzer.daily import fetch_daily_health, parse_date_input
 from garmin_analyzer.evaluator import evaluate_daily_health, save_evaluations
+from garmin_analyzer.deterministic import generate_deterministic_daily_story
+from garmin_analyzer.elevation_profile import render_elevation_profile
 from garmin_analyzer.formatter import (
     format_activity_markdown,
     format_daily_markdown,
@@ -386,6 +388,22 @@ class GarminAnalyzer:
                 if map_file.exists():
                     files_saved.append(str(map_file))
 
+                # Render Elevation Profile if telemetry / GPX points are available
+                elevation_file = act_dir / "elevation_profile.png"
+                if force or not elevation_file.exists():
+                    try:
+                        render_elevation_profile(
+                            act_dir,
+                            elevation_file,
+                            title=f"Höhenprofil: {overview.activity_name}",
+                            distance_km=overview.stats.distance_km,
+                            elevation_gain_m=overview.stats.elevation_gain_meters,
+                        )
+                    except (OSError, ValueError, RuntimeError) as e:
+                        logger.debug("Elevation profile rendering failed for %s: %s", activity_id, e)
+                if elevation_file.exists():
+                    files_saved.append(str(elevation_file))
+
         # 7. Discover and Download Uploaded Photos
         downloaded_photos = []
         if include_photos:
@@ -558,11 +576,12 @@ class GarminAnalyzer:
             daily_md.write_text(format_daily_markdown(summary))
             self._daily_cache[canonical_date] = summary
 
-        # 3. Generate AI personal diary entry if requested
+        # 3. Generate diary report: AI narrative if requested, otherwise deterministic template report (0 API tokens)
         diary_path: Path | None = None
+        daily_dir = output_path / "daily_health" / canonical_date
+        act_dirs = [Path(da.directory) for da in downloaded_activities]
+
         if generate_llm_summary:
-            daily_dir = output_path / "daily_health" / canonical_date
-            act_dirs = [Path(da.directory) for da in downloaded_activities]
             try:
                 diary_path, _ = generate_self_contained_daily_story(
                     canonical_date,
@@ -572,6 +591,18 @@ class GarminAnalyzer:
                 )
             except (OSError, ValueError, RuntimeError, KeyError) as err:
                 logger.warning("Failed generating AI daily diary for %s: %s", canonical_date, err)
+
+        # Fallback or standard mode: generate rich deterministic report (0 LLM cost)
+        if not diary_path or not diary_path.exists():
+            try:
+                diary_path, _ = generate_deterministic_daily_story(
+                    canonical_date,
+                    daily_dir=daily_dir,
+                    activity_dirs=act_dirs,
+                    user_notes=user_notes,
+                )
+            except (OSError, ValueError, RuntimeError, KeyError) as err:
+                logger.warning("Failed generating deterministic daily story for %s: %s", canonical_date, err)
 
         return summary, downloaded_activities, diary_path
 
